@@ -23,7 +23,7 @@ To hide content, surround it with "::: private" and ":::". E.g.:
 ```
 Content publicly visible in the DocFX website.
 
-::: privae
+::: private
 This will not be visible in the DocFX website.
 ::: 
 
