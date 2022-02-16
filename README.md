@@ -14,3 +14,18 @@ Didn't find anything yet.
 
 # Template
 
+To use a certain docfx template, place the template files in a directory named ".docfx_template" in your wiki repository.
+
+# Hiding content
+
+To hide content, surround it with "::: private" and ":::". E.g.:
+
+```
+Content publicly visible in the DocFX website.
+
+::: privae
+This will not be visible in the DocFX website.
+::: 
+
+This will be visible again. 
+```
