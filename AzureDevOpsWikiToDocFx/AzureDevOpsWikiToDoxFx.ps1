@@ -7,11 +7,13 @@
   The directory where the Azure DevOps wiki files are located.
 	.PARAMETER OutputDir
 	The directory where the DocFx project files should be written. It should not yet exist.
+	.PARAMETER TemplateDir
+	Where de DocFX template files are. Required because this needs a modified DocFX template to get it work.
   #>
 
 # Read parameters
 
-param($InputDir, $OutputDir)
+param($InputDir, $OutputDir, $TemplateDir)
 
 # Constants
 
@@ -33,8 +35,16 @@ if ($null -eq $OutputDir) {
   Throw "Parameter OutputDir not provided"
 }
 
+if ($null -eq $TemplateDir) {
+  Throw "Parameter TemplateDir not provided"
+}
+
 if (Test-Path -Path $OutputDir) {
   Throw "OutputDir already exists"
+}
+
+if ((Test-Path -Path $TemplateDir -PathType "Container") -ne $true) {
+  throw "TemplateDir does not exist"
 }
 
 # Function to loop recursivly trough an Azure Devops wiki file structure to copy files to a DocFX file structure and fill a TOC file
@@ -50,7 +60,11 @@ function Copy-Tree {
   }
   
   # Register files from the .order file in the TOC file and copy .md file to the right location
-  $InputDirCurrent = Join-Path $InputDir $BaseDirectory @TocSubdirectories
+  $InputDirCurrent = Join-Path $InputDir $BaseDirectory
+  foreach($TocSubDirectory in $TocSubdirectories) {
+    $InputDirCurrent = Join-Path $InputDirCurrent $TocSubDirectory
+  }
+  
   $SubDirectoryOrderFile = Get-ChildItem -Path $InputDirCurrent | Where-Object Name -eq $OrderFileName
   if ($SubDirectoryOrderFile.Count -gt 0) {
     if ($SubDirectoryOrderFile.Count -gt 1) {
@@ -59,7 +73,7 @@ function Copy-Tree {
     }
 
     # Get lines in .order file
-    $SubdirectoryOrderFileLines = Get-Content -Path $SubDirectoryOrderFile
+    $SubdirectoryOrderFileLines = Get-Content -Path $SubDirectoryOrderFile.FullName
     if ($SubdirectoryOrderFileLines.Count -gt 0) {
 
       if ($TocSubdirectories.Count -gt 0) {
@@ -77,10 +91,20 @@ function Copy-Tree {
         
         # Create directory and copy md file
         $SubdirectoryOrderLineFileName = "$SubdirectoryOrderFileLine$MarkdownExtension"
-        $CopyItemPath = Join-Path $InputDir $BaseDirectory @TocSubdirectories $SubdirectoryOrderLineFileName
-        $NewDir = Join-Path $OutputDir $BaseDirectory @TocSubdirectories $SubdirectoryOrderFileLine
+
+        $NewDir = Join-Path $OutputDir $BaseDirectory
+        foreach($TocSubDirectory in $TocSubdirectories) {
+          $NewDir = Join-Path $NewDir $TocSubDirectory
+        }
+        $NewDir = Join-Path $NewDir $SubdirectoryOrderFileLine
         New-Item -ItemType "directory" -Path $NewDir | Out-Null # silent
+
         $CopyItemDestination = Join-Path $NewDir "index.md"
+        $CopyItemPath = Join-Path $InputDir $BaseDirectory
+        foreach($TocSubDirectory in $TocSubdirectories) {
+          $CopyItemPath = Join-Path $CopyItemPath $TocSubDirectory
+        }
+        $CopyItemPath = Join-Path $CopyItemPath $SubdirectoryOrderLineFileName
         Copy-MarkdownFile -Path $CopyItemPath -Destination $CopyItemDestination 
 
         # Check for subdirectory with the same name for subpages
@@ -172,7 +196,7 @@ foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
   $SubTocContents = ""
 
   # Markdown file in subdirectory
-  Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -Destination (Join-Path $OutputDir $OrderFileLine $DocFxSectionIntroductionFilename)
+  Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -Destination (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxSectionIntroductionFilename)
 
   # If a directory exists with the name, then it has subitems
   $SubDirectory = Join-Path $InputDir $OrderFileLine
@@ -181,7 +205,7 @@ foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
   }
   
   # Write section TOC file
-  Set-Content -Path (Join-Path $OutputDir $OrderFileLine $DocFxTocFilename) -Value $SubTocContents
+  Set-Content -Path (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxTocFilename) -Value $SubTocContents
 }
 # TOC file schrijven
 Set-Content -Path (Join-Path $OutputDir $DocFxTocFilename) -Value $TocContents
@@ -189,16 +213,12 @@ Set-Content -Path (Join-Path $OutputDir $DocFxTocFilename) -Value $TocContents
 # Copy attachments dir
 Copy-Item -Path (Join-Path $InputDir ".attachments") -Destination (Join-Path $OutputDir ".attachments") -Recurse
 
-# docfx.json maken
-$DocFxTemplate = "default"
+# Copy template dir
+$DocFxTemplateDirName = "docfx_template"
+Copy-Item -Path $TemplateDir -Destination (Join-Path $OutputDir $DocFxTemplateDirName) -Recurse
 
-# Check for a custom template
-$DocFxTemplateCheckPath = Join-Path $InputDir ".docfx_template"
-if (Test-Path -Path $DocFxTemplateCheckPath -PathType "Container") {
-  $DocFxTemplate = $DocFxTemplateCheckPath
-}
-
-$DocFxTemplateJson = ConvertTo-Json $DocFxTemplate
+# create docfx.json
+$TemplateDirJson = ConvertTo-Json $DocFxTemplateDirName
 
 $DocFxJson = @"
 {
@@ -224,7 +244,7 @@ $DocFxJson = @"
       "globalMetadataFiles": [],
       "fileMetadataFiles": [],
       "template": [
-        ${DocFxTemplateJson}
+        ${TemplateDirJson}
       ],
       "postProcessors": [ "ExtractSearchIndex" ],
       "markdownEngineName": "markdig",

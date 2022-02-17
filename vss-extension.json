@@ -1,0 +1,48 @@
+{
+    "manifestVersion": 1,
+    "id": "AzureDevOpsWikiToDocFx-dev",
+    "name": "Azure DevOps Wiki to DocFx Dev",
+    "version": "1.0.0",
+    "publisher": "Monta",
+    "targets": [
+        {
+            "id": "Microsoft.VisualStudio.Services"
+        }
+    ],    
+    "description": "A task that generates a DocFX website out of your Azure DevOps wiki repository",
+    "categories": [
+        "Azure Pipelines"
+    ],
+    "icons": {
+        "default": "AzureDevOpsWikiToDocFx/icon.png"        
+    },
+    "files": [
+        {
+            "path": "AzureDevOpsWikiToDocFx"
+        }
+    ],
+    "links": {
+        "getstarted": {
+            "uri": "https://github.com/Montapacking/AzureDevOpsWikiToDocFx/blob/main/README.md"
+        }
+    },
+    "repository": {
+        "type": "git",
+        "uri": "https://github.com/Montapacking/AzureDevOpsWikiToDocFx"
+    },    
+    "galleryFlags": [
+        "Preview"
+    ],
+    "contributions": [
+        {
+            "id": "AzureDevOpsWikiToDocFx",
+            "type": "ms.vss-distributed-task.task",
+            "targets": [
+                "ms.vss-distributed-task.tasks"
+            ],
+            "properties": {
+                "name": "AzureDevOpsWikiToDocFx"
+            }
+        }
+    ]
+}
