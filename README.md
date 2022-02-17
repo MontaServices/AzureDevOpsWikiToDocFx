@@ -7,14 +7,17 @@ This allows to to create a public documentation website with the nice wiki editi
 - Links between pages
 - Images
 - Mermaid diagrams
+- Running the website in a subdirectory: all the links are made relative
 
 # Does not support
 
-- Running in a subdirectory: the resulting site must run on its own domain. This is because we don't touch the link in the wiki files which are absolute.
+- Nothing that I currently know of.
 
 # Template
 
-To use a certain docfx template, place the template files in a directory named ".docfx_template" in your wiki repository.
+This project contains a modified version of the default DocFX template to get everything to work. 
+
+To use your own docfx template, copy the template files in this repository to adirectory named ".docfx_template" in your wiki repository. Then modify the template to your needs. 
 
 # Hiding content
 
@@ -32,7 +35,8 @@ This will be visible again.
 
 # Usage
 
-With a azure-pipelines.yml build file below, a artifact will be created which you can release to a webserver.
+With a azure-pipelines.yml build file below, an artifact with the website files will be created. 
+This you can release to a webserver.
 
 ```
 trigger:

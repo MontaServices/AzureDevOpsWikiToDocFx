@@ -24,6 +24,7 @@ $DocFxTocFilename = "toc.yml"
 $DocFxJsonFilename = "docfx.json"
 $DocFxSectionIntroductionFilename = "index.md"
 $SpecialsMarker = ":::" # For e.g. Mermaid diagrams
+$AttachmentsDirName = "Attachments"
 
 # Check parameters
 
@@ -105,7 +106,7 @@ function Copy-Tree {
           $CopyItemPath = Join-Path $CopyItemPath $TocSubDirectory
         }
         $CopyItemPath = Join-Path $CopyItemPath $SubdirectoryOrderLineFileName
-        Copy-MarkdownFile -Path $CopyItemPath -Destination $CopyItemDestination 
+        Copy-MarkdownFile -Path $CopyItemPath -Destination $CopyItemDestination -Level ($TocSubdirectories.Count + 2)
 
         # Check for subdirectory with the same name for subpages
         $SubSubDirectory = Join-Path $InputDirCurrent $SubdirectoryOrderFileLine
@@ -123,13 +124,15 @@ function Copy-Tree {
 function Copy-MarkdownFile {
   param (
     [string]$Path,
-    [string]$Destination
+    [string]$Destination,
+    [int]$Level
   )
 
   $ThreeDotsStarted = 0;
   $Silent = $false
   $ContentWritten = $false
   foreach($MdLine in Get-Content -Path $Path) {
+    # Process ::: marker for mermaid and private (content to hide)
     if ($MdLine.TrimStart().StartsWith($SpecialsMarker))
     {
       $RestOfLine = $MdLine.Substring(3).Trim();
@@ -148,6 +151,14 @@ function Copy-MarkdownFile {
       }
     }
 
+    # Process images link path
+    $MdLine = $MdLine.Replace("](/.attachments", "](/$AttachmentsDirName")
+
+    # Make absolute links relative
+    $RelativePathPrefix = "../" * $Level
+    $MdLine = $MdLine.Replace("](/", "]($RelativePathPrefix")
+
+    # Write to destination file
     if ($Silent -eq $false) {
       Add-Content -Path $Destination -Value $MdLine
       $ContentWritten = $true
@@ -179,7 +190,7 @@ if ($OrderFileLines.Count -lt 1) {
 
 New-Item -ItemType "directory" -Path $OutputDir | Out-Null # create output dir (silent, output to null)
 
-Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -Destination (Join-Path $OutputDir $DocFxHomepageFilename)
+Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0
 
 # Create TOC file and for the rest of the files in the .order file and copy files to the right directory
 $TocContents = ""
@@ -196,7 +207,7 @@ foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
   $SubTocContents = ""
 
   # Markdown file in subdirectory
-  Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -Destination (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxSectionIntroductionFilename)
+  Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -Destination (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxSectionIntroductionFilename) -Level 1
 
   # If a directory exists with the name, then it has subitems
   $SubDirectory = Join-Path $InputDir $OrderFileLine
@@ -211,7 +222,7 @@ foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
 Set-Content -Path (Join-Path $OutputDir $DocFxTocFilename) -Value $TocContents
 
 # Copy attachments dir
-Copy-Item -Path (Join-Path $InputDir ".attachments") -Destination (Join-Path $OutputDir ".attachments") -Recurse
+Copy-Item -Path (Join-Path $InputDir ".attachments") -Destination (Join-Path $OutputDir $AttachmentsDirName) -Recurse
 
 # Copy template dir
 $DocFxTemplateDirName = "docfx_template"
@@ -236,7 +247,7 @@ $DocFxJson = @"
       "resource": [
         {
           "files": [
-            ".attachments/**"
+            "Attachments/**"
           ]
         }
       ],
