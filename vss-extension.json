@@ -9,21 +9,24 @@
             "id": "Microsoft.VisualStudio.Services"
         }
     ],    
-    "description": "A task that generates a DocFX website out of your Azure DevOps wiki repository",
+    "description": "A task that generates a DocFX website out of your Azure DevOps wiki repository.",
     "categories": [
         "Azure Pipelines"
     ],
     "icons": {
-        "default": "AzureDevOpsWikiToDocFx/icon.png"        
+        "default": "icon.png"
     },
     "files": [
         {
             "path": "AzureDevOpsWikiToDocFx"
         }
     ],
-    "links": {
-        "getstarted": {
-            "uri": "https://github.com/Montapacking/AzureDevOpsWikiToDocFx/blob/main/README.md"
+    "content": {
+        "details": {
+            "path": "overview.md"
+        },
+        "license": {
+            "path": "LICENSE"
         }
     },
     "repository": {
@@ -31,6 +34,7 @@
         "uri": "https://github.com/Montapacking/AzureDevOpsWikiToDocFx"
     },    
     "galleryFlags": [
+        "Public",
         "Preview"
     ],
     "contributions": [
