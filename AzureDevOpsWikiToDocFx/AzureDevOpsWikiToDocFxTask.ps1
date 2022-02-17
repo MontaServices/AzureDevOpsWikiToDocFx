@@ -28,7 +28,7 @@ try {
         $TemplateDir = Join-Path $PSScriptRoot "docfx_template"
     }
     
-    Write-VstsTaskVerbose "Template directory: $TargetFolder"
+    Write-VstsTaskVerbose "Template directory: $TemplateDir"
 
     # Run the script
     $Script = "AzureDevOpsWikiToDoxFx.ps1"
