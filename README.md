@@ -10,7 +10,7 @@ This allows to to create a public documentation website with the nice wiki editi
 
 # Does not support
 
-Didn't find anything yet.
+- Running in a subdirectory: the resulting site must run on its own domain. This is because we don't touch the link in the wiki files which are absolute.
 
 # Template
 
@@ -28,4 +28,30 @@ This will not be visible in the DocFX website.
 ::: 
 
 This will be visible again. 
+```
+
+# Usage
+
+With a azure-pipelines.yml build file below, a artifact will be created which you can release to a webserver.
+
+```
+trigger:
+- main
+
+pool: 
+  vmImage: 'windows-latest'
+
+steps:
+- task: AzureDevOpsWikiToDocFx-dev@2
+  inputs:
+    SourceFolder: '$(System.DefaultWorkingDirectory)'
+    TargetFolder: '$(System.DefaultWorkingDirectory)/docfx'
+- task: DocFxTask@0
+  inputs:
+    solution: 'docfx/docfx.json'
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(System.DefaultWorkingDirectory)/docfx/_site'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
 ```
