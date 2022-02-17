@@ -262,7 +262,7 @@ $DocFxJson = @"
       "noLangKeyword": false,
       "keepFileLink": false,
       "cleanupCacheHistory": false,
-      "disableGitFeatures": false
+      "disableGitFeatures": true
     }
   }
 "@
