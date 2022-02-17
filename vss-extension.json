@@ -1,8 +1,8 @@
 {
     "manifestVersion": 1,
-    "id": "AzureDevOpsWikiToDocFx-dev",
-    "name": "Azure DevOps Wiki to DocFx Dev",
-    "version": "4.0.0",
+    "id": "AzureDevOpsWikiToDocFx", 
+    "name": "Azure DevOps Wiki to DocFx",
+    "version": "1.0.0",
     "publisher": "Monta",
     "targets": [
         {

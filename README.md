@@ -46,7 +46,7 @@ pool:
   vmImage: 'windows-latest'
 
 steps:
-- task: AzureDevOpsWikiToDocFx-dev@2
+- task: AzureDevOpsWikiToDocFx@1
   inputs:
     SourceFolder: '$(System.DefaultWorkingDirectory)'
     TargetFolder: '$(System.DefaultWorkingDirectory)/docfx'
