@@ -24,13 +24,14 @@ $DocFxTocFilename = "toc.yml"
 $DocFxJsonFilename = "docfx.json"
 $DocFxSectionIntroductionFilename = "index.md"
 $SpecialsMarker = ":::" # For Mermaid diagrams
+$MermaidKeyword = "mermaid"
 $SpecialsStartMarker = "[[" # For TOC and audience
 $SpecialsEndMarker = "]]"
 $TocMarker = "[[_TOC_]]"
 $AttachmentsDirName = "Attachments"
 $AudienceKeyword = "Audience"
 
-$AllMarkers = @($SpecialsMarker, $SpecialsStartMarker, $SpecialsEndMarker, $TocMarker)
+$AllMarkers = @($TocMarker, $SpecialsMarker, $SpecialsStartMarker, $SpecialsEndMarker)
 
 # Check parameters
 
@@ -141,11 +142,12 @@ function Copy-MarkdownFile {
     [int]$Level
   )
 
-  $ThreeDotsStarted = 0
-  $Specials2MarkerStarted = 0
-  $Silent = $false
+  $SpecialsMarkerStarted = 0
+  $SpecialsStartMarkersStartedWithSilencedByAudience = New-Object System.Collections.Stack
   $ContentWritten = $false
+  $Silent = $false
   $FirstLineFound = $false
+  $SilenceAfterNextLine = $false;
 
   # Process each line in the file
   foreach($MdLine in Get-Content -Path $Path) {
@@ -160,16 +162,111 @@ function Copy-MarkdownFile {
           # A marker is found
 
           if ($Marker -eq $TocMarker) { # [[_TOC_]]
-            $MdLine = $MdLine.Substring(0, $Start) + $MdLine.Substring($Start + $Marker.Length).TrimStart()
+            # Remove TOC marker from line
+            $PartBeforeMarker = $MdLine.Substring(0, $Start)
+            $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
+            $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
+            $MdLine = $PartBeforeMarker + $PartAfterMarkerTrimmed
             # TODO do not write line if it became empty
           }
           elseif ($Marker -eq $SpecialsStartMarker) { # [[
+            $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
+            $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
+            # turn "[[ Audience" into ...
+            if ($PartAfterMarkerTrimmed.StartsWith($AudienceKeyword)) {
+              $PartBeforeMarker = $MdLine.Substring(0, $Start)
+              # Get everything after "Audience:" or "Audience " or "Audience : "
+              $PartAfterAudience = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $AudienceKeyword.Length);
+              $PartAfterAudienceTrimmed = $PartAfterAudience.TrimStart().TrimStart(":").TrimStart()
+              
+              $AudienceSpecified
+              $PartAfterAudienceKeyword
+
+              $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ")
+
+              # For if there is no content after the audience at all, but the endmarker immediately
+              $RestOfLineEndMarkerIndex = $PartAfterAudienceTrimmed.IndexOf($SpecialsEndMarker)
+              if ($RestOfLineEndMarkerIndex -gt -1 -and $RestOfLineEndMarkerIndex -lt $RestOfLineSpaceIndex  ) {
+                $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineEndMarkerIndex)
+                $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineEndMarkerIndex) # After the space
+              }
+              elseif ($RestOfLineSpaceIndex -lt 0) {
+                $AudienceSpecified = $PartAfterAudienceTrimmed
+                $PartAfterAudienceKeyword = ""
+              }
+              else {
+                $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineSpaceIndex)
+                $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineSpaceIndex + 1) # After the space
+              }
+
+              # TODO check audience
+
+              # Check if the end marker is on this line
+              $EndMarkerPos = $PartAfterAudienceKeyword.IndexOf($SpecialsEndMarker)
+              if ($EndMarkerPos -gt -1) { 
+                # The end marker is this line
+                $MdLine = $PartBeforeMarker + $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length).TrimStart()
+              }
+              else {
+                # The end marker is not on this line
+                $MdLine = $PartBeforeMarker
+                $SilenceAfterNextLine = $true
+                $SpecialsStartMarkersStartedWithSilencedByAudience.Push($SilenceAfterNextLine)
+              }
+            }
           }
           elseif ($Marker -eq $SpecialsEndMarker) { # ]]
+            # if we are in a start marker [[
+            if ($SpecialsStartMarkersStartedWithSilencedByAudience.Count -gt 0) {
 
+              $SpecialsStartMarkersStartedWithSilencedByAudience.Pop()
+
+              if ($Silent -eq $true)
+              {
+                $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length).TrimStart()
+                $MdLine = $PartAfterMarker
+                
+                # Check if we are still in a marker which is silenced
+                $AreWeStillSilenced = $false
+                foreach($SilencedByMarker in $SpecialsStartMarkersStartedWithSilencedByAudience) {
+                  if ($SilencedByMarker -eq $true) {
+                    $AreWeStillSilenced = $true
+                    break
+                  }
+                }
+  
+                if ($AreWeStillSilenced -eq $false) {
+                  $Silent = $false
+                }
+
+              }
+              else {
+                $PartBeforeMarker = $MdLine.Substring(0, $Start)
+                $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length).TrimStart()
+                $MdLine = $PartBeforeMarker + $PartAfterMarker               
+              }              
+            }
           }
           elseif ($Marker -eq $SpecialsMarker) { # :::
-
+            $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
+            $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
+            # turn "::: mermaid" into a div
+            if ($PartAfterMarkerTrimmed.StartsWith($MermaidKeyword)) {
+              $PartBeforeMarker = $MdLine.Substring(0, $Start)
+              $PartAfterMermaid = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $MermaidKeyword.Length);
+              $PartToInsert = "<div class=`"$MermaidKeyword`">"
+              $MdLine = $PartBeforeMarker + $PartToInsert + $PartAfterMermaid
+              $Start += $PartToInsert.Length
+              $SpecialsMarkerStarted += 1
+            }
+            # turn ":::" into an end div (if a div was started)
+            elseif ($SpecialsMarkerStarted -gt 0) {
+              $PartBeforeMarker = $MdLine.Substring(0, $Start)
+              $PartToInsert = "</div>"
+              $MdLine = $PartBeforeMarker + $PartToInsert + $PartAfterMarker
+              $Start += $PartToInsert.Length
+              $SpecialsMarkerStarted -= 1
+            }
           }
         }
       }
@@ -249,8 +346,15 @@ function Copy-MarkdownFile {
     $MdLine = $MdLine.Replace("](/", "]($RelativePathPrefix")
 
     # Write to destination file
-    Add-Content -Path $Destination -Value $MdLine
-    $ContentWritten = $true
+    if ($Silent -ne $true) {
+      Add-Content -Path $Destination -Value $MdLine
+      $ContentWritten = $true
+    }
+
+    if ($SilenceAfterNextLine -eq $true) {
+      $Silent = $true
+      $SilenceAfterNextLine = $false
+    }
   }
 
   return $ContentWritten
