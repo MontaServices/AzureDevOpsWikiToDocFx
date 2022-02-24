@@ -14,6 +14,7 @@
 # Read parameters
 
 param($InputDir, $OutputDir, $TemplateDir)
+# TODO target audience
 
 # Constants
 
@@ -29,7 +30,7 @@ $SpecialsStartMarker = "[[" # For TOC and audience
 $SpecialsEndMarker = "]]"
 $TocMarker = "[[_TOC_]]"
 $AttachmentsDirName = "Attachments"
-$AudienceKeyword = "Audience"
+$AudienceKeywords = $("Audience", "Doelgroep", "Doelgroepen") # TODO parameter
 
 $AllMarkers = @($TocMarker, $SpecialsMarker, $SpecialsStartMarker, $SpecialsEndMarker)
 
@@ -146,12 +147,13 @@ function Copy-MarkdownFile {
   $SpecialsStartMarkersStartedWithSilencedByAudience = New-Object System.Collections.Stack
   $ContentWritten = $false
   $Silent = $false
-  $FirstLineFound = $false
-  $SilenceAfterNextLine = $false;
+  $FirstLineWritten = $false
 
   # Process each line in the file
   foreach($MdLine in Get-Content -Path $Path) {
     $MdLine = $MdLine.Trim()
+    $SilenceAfterNextLine = $false;
+    $DoNotWriteLineIfItsEmpty = $false
 
     # Loop trough each position in the string to process markers
     $Start = 0
@@ -167,51 +169,54 @@ function Copy-MarkdownFile {
             $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
             $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
             $MdLine = $PartBeforeMarker + $PartAfterMarkerTrimmed
-            # TODO do not write line if it became empty
+            $DoNotWriteLineIfItsEmpty = $true # Do not write the line if the TOC was the only thing on this line
           }
           elseif ($Marker -eq $SpecialsStartMarker) { # [[
             $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
             $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
             # turn "[[ Audience" into ...
-            if ($PartAfterMarkerTrimmed.StartsWith($AudienceKeyword)) {
-              $PartBeforeMarker = $MdLine.Substring(0, $Start)
-              # Get everything after "Audience:" or "Audience " or "Audience : "
-              $PartAfterAudience = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $AudienceKeyword.Length);
-              $PartAfterAudienceTrimmed = $PartAfterAudience.TrimStart().TrimStart(":").TrimStart()
-              
-              $AudienceSpecified
-              $PartAfterAudienceKeyword
+            foreach($AudienceKeyword in $AudienceKeywords) {
+              if ($PartAfterMarkerTrimmed.StartsWith($AudienceKeyword)) {
+                $PartBeforeMarker = $MdLine.Substring(0, $Start)
+                # Get everything after "Audience:" or "Audience " or "Audience : "
+                $PartAfterAudience = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $AudienceKeyword.Length);
+                $PartAfterAudienceTrimmed = $PartAfterAudience.TrimStart().TrimStart(":").TrimStart()
+                
+                $AudienceSpecified
+                $PartAfterAudienceKeyword
 
-              $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ")
+                $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ")
+                # TODO multiple and comma with space
 
-              # For if there is no content after the audience at all, but the endmarker immediately
-              $RestOfLineEndMarkerIndex = $PartAfterAudienceTrimmed.IndexOf($SpecialsEndMarker)
-              if ($RestOfLineEndMarkerIndex -gt -1 -and $RestOfLineEndMarkerIndex -lt $RestOfLineSpaceIndex  ) {
-                $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineEndMarkerIndex)
-                $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineEndMarkerIndex) # After the space
-              }
-              elseif ($RestOfLineSpaceIndex -lt 0) {
-                $AudienceSpecified = $PartAfterAudienceTrimmed
-                $PartAfterAudienceKeyword = ""
-              }
-              else {
-                $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineSpaceIndex)
-                $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineSpaceIndex + 1) # After the space
-              }
+                # For if there is no content after the audience at all, but the endmarker immediately
+                $RestOfLineEndMarkerIndex = $PartAfterAudienceTrimmed.IndexOf($SpecialsEndMarker)
+                if ($RestOfLineEndMarkerIndex -gt -1 -and $RestOfLineEndMarkerIndex -lt $RestOfLineSpaceIndex  ) {
+                  $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineEndMarkerIndex)
+                  $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineEndMarkerIndex) # After the space
+                }
+                elseif ($RestOfLineSpaceIndex -lt 0) {
+                  $AudienceSpecified = $PartAfterAudienceTrimmed
+                  $PartAfterAudienceKeyword = ""
+                }
+                else {
+                  $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineSpaceIndex)
+                  $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineSpaceIndex + 1) # After the space
+                }
 
-              # TODO check audience
+                # TODO check audience
 
-              # Check if the end marker is on this line
-              $EndMarkerPos = $PartAfterAudienceKeyword.IndexOf($SpecialsEndMarker)
-              if ($EndMarkerPos -gt -1) { 
-                # The end marker is this line
-                $MdLine = $PartBeforeMarker + $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length).TrimStart()
-              }
-              else {
-                # The end marker is not on this line
-                $MdLine = $PartBeforeMarker
-                $SilenceAfterNextLine = $true
-                $SpecialsStartMarkersStartedWithSilencedByAudience.Push($SilenceAfterNextLine)
+                # Check if the end marker is on this line
+                $EndMarkerPos = $PartAfterAudienceKeyword.IndexOf($SpecialsEndMarker)
+                if ($EndMarkerPos -gt -1) { 
+                  # The end marker is this line
+                  $MdLine = $PartBeforeMarker + $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length).TrimStart()
+                }
+                else {
+                  # The end marker is not on this line
+                  $MdLine = $PartBeforeMarker
+                  $SilenceAfterNextLine = $true
+                  $SpecialsStartMarkersStartedWithSilencedByAudience.Push($SilenceAfterNextLine)
+                }
               }
             }
           }
@@ -274,81 +279,25 @@ function Copy-MarkdownFile {
       $Start += 1
     }
 
-    #$NewMdLine = 
-    #$Specials2MarkerPosition = $MdLine.IndexOf($Specials2StartMarker)
-    #if ($Specials2MarkerPosition -gt -1) {
-    #  $PartBeforeSpecials2Marker = $MdLine.Substring(0, $Specials2MarkerPosition)
-    #  $RestOfLine = $MdLine.Substring($Specials2MarkerPosition)
-#
-    #  # Remove TOC
-    #  $TocMarker = "${Specials2StartMarker}_TOC_${Specials2EndMarker}"
-    #  if ($RestOfLine.StartsWith($TocMarker))
-    #  {
-    #    $RestOfLine = $RestOfLine.Substring($TocMarker.Length).TrimStart()
-    #  }
-#
-    #  # Audience
-    #  if ($RestOfLine.StartsWith($AudienceKeyword)) {
-    #    $RestOfLine = $RestOfLine.Substring($Specials2StartMarker.Length + $AudienceKeyword.Length).TrimStart().TrimStart(':').TrimStart()
-#
-    #    $RestOfLineFirstSpace = $RestOfLine.IndexOf(" ")
-    #    $AudienceSpecified
-    #    if ($RestOfLineFirstSpace -lt 0) {
-    #      $AudienceSpecified = $RestOfLine
-    #      $RestOfLine = ""
-    #    }
-    #    else {
-    #      $AudienceSpecified = $RestOfLine.Substring(0, $RestOfLineFirstSpace)
-    #      $RestOfLine = $RestOfLine.Substring($RestOfLineFirstSpace)
-    #    }
-#
-    #    $AudiencesSpecified = $AudienceSpecified -split ','
-    #  }
-#
-    #  $MdLine = $PartBeforeSpecials2Marker + $RestOfLine
-#
-    #  # If processing the marker resulted in an empty line, continue (do not write it)
-    #  if ($MdLine.Length -lt 1) {
-    #    continue
-    #  }
-    #}
-#
-    ## Skip empty lines in the beginning of the file (skip lines until first non empty line found)
-    #if ($MdLine.Length -lt 1 -and $FirstLineFound -eq $false) {
-    #  continue
-    #}
-    #$FirstLineFound = $true
-#
-    ## Process ::: marker for mermaid 
-    #if ($MdLine.StartsWith($SpecialsMarker))
-    #{
-    #  $RestOfLine = $MdLine.Substring($SpecialsMarker.Length)
-    #  if ($RestOfLine.Length -gt 0) {
-    #    if ($RestOfLine -eq "private") {
-    #      throw "Private content is not support anymore in v2, please use Audience. In file: " + $Path
-    #    }
-    #    else {
-    #      $MdLine = "<div class=`"$RestOfLine`">"
-    #    }
-    #    $ThreeDotsStarted += 1    
-    #  }
-    #  elseif ($ThreeDotsStarted -gt 0) {
-    #    $MdLine = "</div>"
-    #    $ThreeDotsStarted -= 1
-    #  }
-    #}
-#
-    ## Process images link path
-    #$MdLine = $MdLine.Replace("](/.attachments", "](/$AttachmentsDirName")
-#
-    ## Make absolute links relative
+    # Process images link path
+    $MdLine = $MdLine.Replace("](/.attachments", "](/$AttachmentsDirName")
+
+    # Make absolute links relative
     $RelativePathPrefix = "../" * $Level
     $MdLine = $MdLine.Replace("](/", "]($RelativePathPrefix")
+
+    # Don't write empty lines at the start of the file or if it was requested
+    if ($MdLine.Length -lt 1) {
+      if ($DoNotWriteLineIfItsEmpty -eq $true -or $FirstLineWritten -eq $false) {
+        continue
+      }
+    }
 
     # Write to destination file
     if ($Silent -ne $true) {
       Add-Content -Path $Destination -Value $MdLine
       $ContentWritten = $true
+      $FirstLineWritten = $true
     }
 
     if ($SilenceAfterNextLine -eq $true) {
