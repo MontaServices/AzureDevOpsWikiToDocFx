@@ -16,6 +16,10 @@
 param($InputDir, $OutputDir, $TemplateDir)
 # TODO target audience
 
+# Setup
+
+$ErrorActionPreference = "Stop" # Stop on first error
+
 # Constants
 
 $OrderFileName = ".order"
@@ -33,6 +37,7 @@ $AttachmentsDirName = "Attachments"
 $AudienceKeywords = $("Audience", "Doelgroep", "Doelgroepen") # TODO parameter
 
 $AllMarkers = @($TocMarker, $SpecialsMarker, $SpecialsStartMarker, $SpecialsEndMarker)
+$AudienceKeywords = $AudienceKeywords | Sort-Object Length -Descending # longest first
 
 # Check parameters
 
@@ -186,11 +191,15 @@ function Copy-MarkdownFile {
                 $PartAfterAudienceKeyword
 
                 $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ")
-                # TODO multiple and comma with space
+                
+                # if it ends with a comma, get until the next space
+                while ($RestOfLineSpaceIndex -gt -1 -and $PartAfterAudienceTrimmed[$RestOfLineSpaceIndex-1] -eq ",") {
+                  $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ", $RestOfLineSpaceIndex+1)
+                }
 
                 # For if there is no content after the audience at all, but the endmarker immediately
                 $RestOfLineEndMarkerIndex = $PartAfterAudienceTrimmed.IndexOf($SpecialsEndMarker)
-                if ($RestOfLineEndMarkerIndex -gt -1 -and $RestOfLineEndMarkerIndex -lt $RestOfLineSpaceIndex  ) {
+                if ($RestOfLineEndMarkerIndex -gt -1 -and ($RestOfLineEndMarkerIndex -lt $RestOfLineSpaceIndex -or $RestOfLineSpaceIndex -lt 0)) {
                   $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineEndMarkerIndex)
                   $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineEndMarkerIndex) # After the space
                 }
@@ -217,6 +226,8 @@ function Copy-MarkdownFile {
                   $SilenceAfterNextLine = $true
                   $SpecialsStartMarkersStartedWithSilencedByAudience.Push($SilenceAfterNextLine)
                 }
+
+                break # if an audience marker is found after the [[, do not search for others
               }
             }
           }
