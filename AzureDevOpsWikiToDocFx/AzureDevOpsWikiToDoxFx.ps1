@@ -11,10 +11,12 @@
 	Where de DocFX template files are. Required because this needs a modified DocFX template to get it work.
   #>
 
-# Read parameters
-
-param($InputDir, $OutputDir, $TemplateDir)
-# TODO target audience
+# Read parameters  
+param (
+  $InputDir, 
+  $OutputDir, 
+  $TemplateDir
+)
 
 # Setup
 
@@ -39,31 +41,7 @@ $AudienceKeywords = $("Audience", "Doelgroep", "Doelgroepen") # TODO parameter
 $AllMarkers = @($TocMarker, $SpecialsMarker, $SpecialsStartMarker, $SpecialsEndMarker)
 $AudienceKeywords = $AudienceKeywords | Sort-Object Length -Descending # longest first
 
-# Check parameters
-
-if ($null -eq $InputDir) {
-  Throw "Parameter InputDir not provided"
-}	
-
-if ($null -eq $OutputDir) {
-  Throw "Parameter OutputDir not provided"
-}
-
-if ($null -eq $TemplateDir) {
-  Throw "Parameter TemplateDir not provided"
-}
-
-if (Test-Path -Path $OutputDir) {
-  Throw "OutputDir already exists"
-}
-
-if ((Test-Path -Path $TemplateDir -PathType "Container") -ne $true) {
-  throw "TemplateDir does not exist"
-}
-
-#####
-# Functions
-####
+#### Define functions 
 
 # Function to loop recursivly trough an Azure Devops wiki file structure to copy files to a DocFX file structure and fill a TOC file
 function Copy-Tree {
@@ -213,21 +191,37 @@ function Copy-MarkdownFile {
                 }
 
                 # TODO check audience
+                $SilenceByAudience = $true
 
                 # Check if the end marker is on this line
                 $EndMarkerPos = $PartAfterAudienceKeyword.IndexOf($SpecialsEndMarker)
-                if ($EndMarkerPos -gt -1) { 
-                  # The end marker is this line
-                  $MdLine = $PartBeforeMarker + $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length).TrimStart()
+
+                # If we are at the start of the file, the audience is for the whole file, so we don't look at the end marker
+                if ($EndMarkerPos -gt -1 -and $FirstLineWritten) {
+                  # The end marker is on this line
+                  $MdLine = $PartBeforeMarker 
+
+                  # Part between end marker
+                  if (-not $SilenceByAudience) {
+                    $MdLine += $PartAfterAudienceKeyword.Substring(0, $EndMarkerPos)
+                  }
+
+                  # Part after end marker
+                  $MdLine += $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length)
                 }
                 else {
                   # The end marker is not on this line
-                  $MdLine = $PartBeforeMarker
-                  $SilenceAfterNextLine = $true
-                  $SpecialsStartMarkersStartedWithSilencedByAudience.Push($SilenceAfterNextLine)
+                  if (-not $SilenceByAudience) {
+                    $MdLine = $PartBeforeMarker + $PartAfterAudienceKeyword
+                  }
+                  else {
+                    $MdLine = $PartBeforeMarker
+                    $SilenceAfterNextLine = $true
+                    $SpecialsStartMarkersStartedWithSilencedByAudience.Push($SilenceAfterNextLine)
+                  }
                 }
 
-                break # if an audience marker is found after the [[, do not search for others
+                break # if an audience marker is found after the [[, do not search for other markers
               }
             }
           }
@@ -297,15 +291,21 @@ function Copy-MarkdownFile {
     $RelativePathPrefix = "../" * $Level
     $MdLine = $MdLine.Replace("](/", "]($RelativePathPrefix")
 
+    $WriteLine = $true
+
     # Don't write empty lines at the start of the file or if it was requested
     if ($MdLine.Length -lt 1) {
       if ($DoNotWriteLineIfItsEmpty -eq $true -or $FirstLineWritten -eq $false) {
-        continue
+        $WriteLine = $false
       }
     }
 
+    if ($Silent) {
+      $WriteLine = $false
+    }
+
     # Write to destination file
-    if ($Silent -ne $true) {
+    if ($WriteLine) {
       Add-Content -Path $Destination -Value $MdLine
       $ContentWritten = $true
       $FirstLineWritten = $true
@@ -320,69 +320,100 @@ function Copy-MarkdownFile {
   return $ContentWritten
 }
 
-#####
-# Script starts here
-####
+# Main function of the script
+function Copy-DevOpsWikiToDocFx {
+  param (
+    $InputDir, 
+    $OutputDir, 
+    $TemplateDir
+  )
+  # TODO target audience
 
-# Search .order file
+  # Check parameters
 
-$OrderFilesFound = Get-ChildItem -Path $InputDir | Where-Object Name -eq $OrderFileName
+  if ($null -eq $InputDir) {
+    Throw "Parameter InputDir not provided"
+  }	
 
-if ($OrderFilesFound.Count -ne 1) {
-  Throw "Input directory does not contain a $OrderFileName file"
-}
-
-# Create homepage for first file in de .order file
-$OrderFileLines = Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name)
-
-if ($OrderFileLines.Count -lt 1) {
-  Throw "$OrderFileName file in Input directory is empty"
-}
-
-New-Item -ItemType "directory" -Path $OutputDir | Out-Null # create output dir (silent, output to null)
-
-Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0
-
-# Create TOC file and for the rest of the files in the .order file and copy files to the right directory
-$TocContents = ""
-foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
-{
-  $TocContents += "- name: $OrderFileLine`n"
-  $TocContents += "  href: $OrderFileLine/`n"
-  $TocContents += "  topicHref: $OrderFileLine/`n"
-
-  # subdirectory    
-  New-Item -ItemType "directory" -Path (Join-Path $OutputDir $OrderFileLine) | Out-Null # silent
-
-  # Toc file in subdirectory
-  $SubTocContents = ""
-
-  # Markdown file in subdirectory
-  Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -Destination (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxSectionIntroductionFilename) -Level 1
-
-  # If a directory exists with the name, then it has subitems
-  $SubDirectory = Join-Path $InputDir $OrderFileLine
-  if (Test-Path -Path $SubDirectory -PathType "Container") {
-    Copy-Tree -BaseDirectory $OrderFileLine -TocFileString ([ref]$SubTocContents)
+  if ($null -eq $OutputDir) {
+    Throw "Parameter OutputDir not provided"
   }
-  
-  # Write section TOC file
-  Set-Content -Path (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxTocFilename) -Value $SubTocContents
-}
-# TOC file schrijven
-Set-Content -Path (Join-Path $OutputDir $DocFxTocFilename) -Value $TocContents
 
-# Copy attachments dir
-Copy-Item -Path (Join-Path $InputDir ".attachments") -Destination (Join-Path $OutputDir $AttachmentsDirName) -Recurse
+  if ($null -eq $TemplateDir) {
+    Throw "Parameter TemplateDir not provided"
+  }
 
-# Copy template dir
-$DocFxTemplateDirName = "docfx_template"
-Copy-Item -Path $TemplateDir -Destination (Join-Path $OutputDir $DocFxTemplateDirName) -Recurse
+  if (Test-Path -Path $OutputDir) {
+    Throw "OutputDir already exists"
+  }
 
-# create docfx.json
-$TemplateDirJson = ConvertTo-Json $DocFxTemplateDirName
+  if ((Test-Path -Path $TemplateDir -PathType "Container") -ne $true) {
+    throw "TemplateDir does not exist"
+  }
 
-$DocFxJson = @"
+  # Search .order file
+
+  $OrderFilesFound = Get-ChildItem -Path $InputDir | Where-Object Name -eq $OrderFileName
+
+  if ($OrderFilesFound.Count -ne 1) {
+    Throw "Input directory does not contain a $OrderFileName file"
+  }
+
+  # Create homepage for first file in de .order file
+  $OrderFileLines = Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name)
+
+  if ($OrderFileLines.Count -lt 1) {
+    Throw "$OrderFileName file in Input directory is empty"
+  }
+
+  New-Item -ItemType "directory" -Path $OutputDir | Out-Null # create output dir (silent, output to null)
+
+  Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0
+
+  # Create TOC file and for the rest of the files in the .order file and copy files to the right directory
+  $TocContents = ""
+  foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
+  {
+    $TocContents += "- name: " + $OrderFileLine.Replace("-", " ") + "`n"
+    $TocContents += "  href: $OrderFileLine/`n"
+    $TocContents += "  topicHref: $OrderFileLine/`n"
+
+    # subdirectory    
+    New-Item -ItemType "directory" -Path (Join-Path $OutputDir $OrderFileLine) | Out-Null # silent
+
+    # Toc file in subdirectory
+    $SubTocContents = ""
+
+    # Markdown file in subdirectory
+    Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -Destination (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxSectionIntroductionFilename) -Level 1
+
+    # If a directory exists with the name, then it has subitems
+    $SubDirectory = Join-Path $InputDir $OrderFileLine
+    if (Test-Path -Path $SubDirectory -PathType "Container") {
+      Copy-Tree -BaseDirectory $OrderFileLine -TocFileString ([ref]$SubTocContents)
+    }
+    
+    # Write section TOC file
+    if ($SubTocContents.Length -gt 0) {
+      Set-Content -Path (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxTocFilename) -Value $SubTocContents
+    }
+  }
+  # TOC file schrijven
+  if ($TocContents.Length -gt 0) {
+    Set-Content -Path (Join-Path $OutputDir $DocFxTocFilename) -Value $TocContents
+  }
+
+  # Copy attachments dir
+  Copy-Item -Path (Join-Path $InputDir ".attachments") -Destination (Join-Path $OutputDir $AttachmentsDirName) -Recurse
+
+  # Copy template dir
+  $DocFxTemplateDirName = "docfx_template"
+  Copy-Item -Path $TemplateDir -Destination (Join-Path $OutputDir $DocFxTemplateDirName) -Recurse
+
+  # create docfx.json
+  $TemplateDirJson = ConvertTo-Json $DocFxTemplateDirName
+
+  $DocFxJson = @"
 {
     "build": {
       "content": [
@@ -418,6 +449,9 @@ $DocFxJson = @"
   }
 "@
 
-Set-Content -Path (Join-Path $OutputDir $DocFxJsonFilename) -Value $DocFxJson 
+  Set-Content -Path (Join-Path $OutputDir $DocFxJsonFilename) -Value $DocFxJson 
+}
 
-Exit 0
+#### Script start here 
+
+Copy-DevOpsWikiToDocFx -InputDir $InputDir -OutputDir $OutputDir -TemplateDir $TemplateDir
