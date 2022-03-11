@@ -31,10 +31,13 @@ try {
     Write-VstsTaskVerbose "Template directory: $TemplateDir"
 
     # Run the script
-    $Script = "AzureDevOpsWikiToDoxFx.ps1"
-    Write-VstsTaskVerbose "Invoking $Script"
+    $Script = "AzureDevOpsWikiToDocFxInclude.ps1"
+    Write-VstsTaskVerbose "Dot-sourcing $Script"
     $ScriptPath = Join-Path $PSScriptRoot $Script
-    & "$ScriptPath" -InputDir $SourceFolder -OutputDir $TargetFolder -TemplateDir $TemplateDir
+    . $ScriptPath
+
+    Write-VstsTaskVerbose "Starting"
+    Copy-DevOpsWikiToDocFx -InputDir $InputDir -OutputDir $OutputDir -TemplateDir $TemplateDir -TargetAudience $TargetAudience
 } finally {
     Trace-VstsLeavingInvocation $MyInvocation
 }

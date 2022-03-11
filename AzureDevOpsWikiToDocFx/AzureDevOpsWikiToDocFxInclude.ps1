@@ -1,23 +1,3 @@
-<#
-  .SYNOPSIS
-  This script transform Azure DevOps wiki files to a DocFX project
-  .DESCRIPTION
-  This script transform Azure DevOps wiki files to a DocFX project.
-  .PARAMETER InputDir
-  The directory where the Azure DevOps wiki files are located.
-	.PARAMETER OutputDir
-	The directory where the DocFx project files should be written. It should not yet exist.
-	.PARAMETER TemplateDir
-	Where de DocFX template files are. Required because this needs a modified DocFX template to get it work.
-  #>
-
-# Read parameters  
-param (
-  $InputDir, 
-  $OutputDir, 
-  $TemplateDir
-)
-
 # Setup
 
 $ErrorActionPreference = "Stop" # Stop on first error
@@ -41,7 +21,7 @@ $AudienceKeywords = $("Audience", "Doelgroep", "Doelgroepen") # TODO parameter
 $AllMarkers = @($TocMarker, $SpecialsMarker, $SpecialsStartMarker, $SpecialsEndMarker)
 $AudienceKeywords = $AudienceKeywords | Sort-Object Length -Descending # longest first
 
-#### Define functions 
+#### Functions 
 
 # Function to loop recursivly trough an Azure Devops wiki file structure to copy files to a DocFX file structure and fill a TOC file
 function Copy-Tree {
@@ -64,8 +44,7 @@ function Copy-Tree {
   $SubDirectoryOrderFile = Get-ChildItem -Path $InputDirCurrent | Where-Object Name -eq $OrderFileName
   if ($SubDirectoryOrderFile.Count -gt 0) {
     if ($SubDirectoryOrderFile.Count -gt 1) {
-      Write-Host "Multiple $OrderFileName files in directory $OrderFileLine"
-      Exit 1
+      Throw "Multiple $OrderFileName files in directory $OrderFileLine"
     }
 
     # Get lines in .order file
@@ -118,12 +97,57 @@ function Copy-Tree {
   }
 }
 
+function Get-SilenceByAudience {
+  param (
+    [string]$AudienceSpecified,
+    [string]$TargetAudience
+  )
+
+  $AudienceSpecified = $AudienceSpecified.Trim()
+
+  if ($null -eq $TargetAudience) {
+    $TargetAudience = ""
+  }
+  else {
+    $TargetAudience = $TargetAudience.Trim()
+  }
+  
+  if ($TargetAudience.Length -le 0) {
+    if ($AudienceSpecified.Length -gt 0) {
+      # No target audience, but audience specified -> silence
+      return $true
+    }
+    else {
+      # No target audience, no audience specified -> no silence
+      return $false
+    }
+  }
+  else {
+    if ($AudienceSpecified.Length -le 0) {
+      # Target audience, but no audience specified -> silence
+      return $true
+    }
+    else {
+      # Target audience, audience specified
+      $AudiencesSpecified = $AudienceSpecified.Split(',')
+      foreach($AudiencesSpecifiedPart in $AudiencesSpecified) {
+        $AudiencesSpecifiedPart = $AudiencesSpecifiedPart.Trim()
+        if ($AudiencesSpecifiedPart -eq $TargetAudience) {
+          return $false
+        }
+      }
+      return $true
+    }
+  }
+}
+
 # Function to copy an Azure Devops wiki file to a DocFX file
 function Copy-MarkdownFile {
   param (
     [string]$Path,
     [string]$Destination,
-    [int]$Level
+    [int]$Level,
+    [string]$TargetAudience
   )
 
   $SpecialsMarkerStarted = 0
@@ -165,8 +189,8 @@ function Copy-MarkdownFile {
                 $PartAfterAudience = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $AudienceKeyword.Length);
                 $PartAfterAudienceTrimmed = $PartAfterAudience.TrimStart().TrimStart(":").TrimStart()
                 
-                $AudienceSpecified
-                $PartAfterAudienceKeyword
+                #$AudienceSpecified
+                #$PartAfterAudienceKeyword
 
                 $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ")
                 
@@ -190,8 +214,8 @@ function Copy-MarkdownFile {
                   $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineSpaceIndex + 1) # After the space
                 }
 
-                # TODO check audience
-                $SilenceByAudience = $true
+                # check audience
+                $SilenceByAudience = Get-SilenceByAudience -AudienceSpecified $AudienceSpecified -TargetAudience $TargetAudience
 
                 # Check if the end marker is on this line
                 $EndMarkerPos = $PartAfterAudienceKeyword.IndexOf($SpecialsEndMarker)
@@ -229,7 +253,7 @@ function Copy-MarkdownFile {
             # if we are in a start marker [[
             if ($SpecialsStartMarkersStartedWithSilencedByAudience.Count -gt 0) {
 
-              $SpecialsStartMarkersStartedWithSilencedByAudience.Pop()
+              $SpecialsStartMarkersStartedWithSilencedByAudience.Pop() | Out-Null
 
               if ($Silent -eq $true)
               {
@@ -325,9 +349,9 @@ function Copy-DevOpsWikiToDocFx {
   param (
     $InputDir, 
     $OutputDir, 
-    $TemplateDir
+    $TemplateDir,
+    $TargetAudience
   )
-  # TODO target audience
 
   # Check parameters
 
@@ -385,7 +409,7 @@ function Copy-DevOpsWikiToDocFx {
     $SubTocContents = ""
 
     # Markdown file in subdirectory
-    Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -Destination (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxSectionIntroductionFilename) -Level 1
+    Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -Destination (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxSectionIntroductionFilename) -Level 1 -TargetAudience $TargetAudience
 
     # If a directory exists with the name, then it has subitems
     $SubDirectory = Join-Path $InputDir $OrderFileLine
@@ -451,7 +475,3 @@ function Copy-DevOpsWikiToDocFx {
 
   Set-Content -Path (Join-Path $OutputDir $DocFxJsonFilename) -Value $DocFxJson 
 }
-
-#### Script start here 
-
-Copy-DevOpsWikiToDocFx -InputDir $InputDir -OutputDir $OutputDir -TemplateDir $TemplateDir
