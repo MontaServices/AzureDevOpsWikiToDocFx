@@ -26,17 +26,19 @@ $AudienceKeywords = $AudienceKeywords | Sort-Object Length -Descending # longest
 # Function to loop recursivly trough an Azure Devops wiki file structure to copy files to a DocFX file structure and fill a TOC file
 function Copy-Tree {
   param (
-    [string]$BaseDirectory,
+    [string]$InputBaseDirectory,
+    [string]$OutputBaseDirectory,
     [ref]$TocFileString,
-    [string[]]$TocSubdirectories
+    [string[]]$TocSubdirectories,
+    [string]$TargetAudience
   )
 
   if ($null -eq $TocSubdirectories) {
     $TocSubdirectories = @()
   }
-  
+
   # Register files from the .order file in the TOC file and copy .md file to the right location
-  $InputDirCurrent = Join-Path $InputDir $BaseDirectory
+  $InputDirCurrent = Join-Path $InputDir $InputBaseDirectory
   foreach($TocSubDirectory in $TocSubdirectories) {
     $InputDirCurrent = Join-Path $InputDirCurrent $TocSubDirectory
   }
@@ -57,7 +59,7 @@ function Copy-Tree {
 
       foreach($SubdirectoryOrderFileLine in $SubdirectoryOrderFileLines) {
         $Indent = "  " * $TocSubdirectories.Count
-        $Name = $SubdirectoryOrderFileLine.Replace("-", " ")
+        $Name = Format-PageName $SubdirectoryOrderFileLine
         $TocFileString.Value += "$Indent- name: $Name`n"
         $TocPathItems = $TocSubdirectories.Clone()
         $TocPathItems += $SubdirectoryOrderFileLine
@@ -67,29 +69,31 @@ function Copy-Tree {
         # Create directory and copy md file
         $SubdirectoryOrderLineFileName = "$SubdirectoryOrderFileLine$MarkdownExtension"
 
-        $NewDir = Join-Path $OutputDir $BaseDirectory
+        $NewDir = Join-Path $OutputDir $OutputBaseDirectory
         foreach($TocSubDirectory in $TocSubdirectories) {
           $NewDir = Join-Path $NewDir $TocSubDirectory
         }
-        $NewDir = Join-Path $NewDir $SubdirectoryOrderFileLine
+        $SubdirectoryOrderFileLineFileName = Format-PageFileName $SubdirectoryOrderFileLine
+        $NewDir = Join-Path $NewDir $SubdirectoryOrderFileLineFileName
         New-Item -ItemType "directory" -Path $NewDir | Out-Null # silent
 
         $CopyItemDestination = Join-Path $NewDir "index.md"
-        $CopyItemPath = Join-Path $InputDir $BaseDirectory
+        $CopyItemPath = Join-Path $InputDir $InputBaseDirectory
         foreach($TocSubDirectory in $TocSubdirectories) {
           $CopyItemPath = Join-Path $CopyItemPath $TocSubDirectory
         }
         $CopyItemPath = Join-Path $CopyItemPath $SubdirectoryOrderLineFileName
-        $ContentWritten = Copy-MarkdownFile -Path $CopyItemPath -Destination $CopyItemDestination -Level ($TocSubdirectories.Count + 2)
+        $ContentWritten = Copy-MarkdownFile -Path $CopyItemPath -DestinationDir $NewDir -Destination $CopyItemDestination -Level ($TocSubdirectories.Count + 2)  -TargetAudience $TargetAudience
 
         # Check for subdirectory with the same name for subpages
         # Only if this page has been written
         if ($ContentWritten) {
-          $SubSubDirectory = Join-Path $InputDirCurrent $SubdirectoryOrderFileLine
+          $SubdirectoryOrderFileLineFormatted = Format-PageFileName $SubdirectoryOrderFileLine
+          $SubSubDirectory = Join-Path $InputDirCurrent $SubdirectoryOrderFileLineFormatted
           if (Test-Path -Path $SubSubDirectory -PathType "Container") {
             $NewTocSubdirectories = $TocSubdirectories.Clone()
             $NewTocSubdirectories += $SubdirectoryOrderFileLine
-            Copy-Tree -BaseDirectory $BaseDirectory -TocFileString ([ref]$SubTocContents) -TocSubdirectories $NewTocSubdirectories
+            Copy-Tree -InputBaseDirectory $InputBaseDirectory -OutputBaseDirectory $OutputBaseDirectory -TocFileString ([ref]$SubTocContents) -TocSubdirectories $NewTocSubdirectories -TargetAudience $TargetAudience
           }
         }
       }
@@ -141,20 +145,49 @@ function Get-SilenceByAudience {
   }
 }
 
+# Throw an exception when a page name contains an invalid character
+function Format-PageFileName {
+  param (
+    [string]$PageFileName
+  )
+
+  $PageFileName = $PageFileName.Replace("%2D", "-")
+
+  if ($PageFileName.Contains("%")) {
+    throw "Invalid page name ${PageFileName}: DocFX does not support special characters"
+  }
+
+  return $PageFileName
+}
+
+function Format-PageName {
+  param (
+    [string]$PageName
+  )
+
+  $PageName = [System.Web.HTTPUtility]::UrlDecode($PageName).Replace("-", " ")
+
+  return $PageName
+}
+
 # Function to copy an Azure Devops wiki file to a DocFX file
 function Copy-MarkdownFile {
   param (
     [string]$Path,
+    [string]$DestinationDir,
     [string]$Destination,
     [int]$Level,
     [string]$TargetAudience
   )
+  
+  # TODO file niet schrijven als er geen audience aangegeven is in de file maar wel een TargetAudience
 
   $SpecialsMarkerStarted = 0
   $SpecialsStartMarkersStartedWithSilencedByAudience = New-Object System.Collections.Stack
   $ContentWritten = $false
   $Silent = $false
   $FirstLineWritten = $false
+  $DestinationDirExists = $false
 
   # Process each line in the file
   foreach($MdLine in Get-Content -Path $Path) {
@@ -328,8 +361,23 @@ function Copy-MarkdownFile {
       $WriteLine = $false
     }
 
+    # If a TargetAudience is specified, but the content has nog audience specified, do not print it
+    if ($TargetAudience.Length -gt 0) {
+      if ($SpecialsStartMarkersStartedWithSilencedByAudience.Count -le 0) {
+        $WriteLine = $false
+      }
+    }
+
     # Write to destination file
     if ($WriteLine) {
+      # Check if destination dir
+      if ($DestinationDirExists -ne $true) {
+        if ((Test-Path -Path $DestinationDir) -ne $true) {
+          New-Item -ItemType "directory" -Path $DestinationDir | Out-Null # silent
+        }
+        $DestinationDirExists = $true
+      }
+
       Add-Content -Path $Destination -Value $MdLine
       $ContentWritten = $true
       $FirstLineWritten = $true
@@ -392,34 +440,38 @@ function Copy-DevOpsWikiToDocFx {
 
   New-Item -ItemType "directory" -Path $OutputDir | Out-Null # create output dir (silent, output to null)
 
-  Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0
+  Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -DestinationDir $OutputDir -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0 -TargetAudience $TargetAudience
 
   # Create TOC file and for the rest of the files in the .order file and copy files to the right directory
   $TocContents = ""
   foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
   {
-    $TocContents += "- name: " + $OrderFileLine.Replace("-", " ") + "`n"
-    $TocContents += "  href: $OrderFileLine/`n"
-    $TocContents += "  topicHref: $OrderFileLine/`n"
-
-    # subdirectory    
-    New-Item -ItemType "directory" -Path (Join-Path $OutputDir $OrderFileLine) | Out-Null # silent
-
     # Toc file in subdirectory
     $SubTocContents = ""
 
-    # Markdown file in subdirectory
-    Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -Destination (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxSectionIntroductionFilename) -Level 1 -TargetAudience $TargetAudience
+    # Markdown file in subdirectory    
+    $OrderFileLineForDestinationDir = Format-PageFileName $OrderFileLine
+    $DestinationDir = Join-Path $OutputDir $OrderFileLineForDestinationDir
+    $ContentWritten = Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -DestinationDir $DestinationDir -Destination (Join-Path $DestinationDir $DocFxSectionIntroductionFilename) -Level 1 -TargetAudience $TargetAudience
+    
+    # If file was written
+    if ($ContentWritten) {
+      # Toc
+      $PageName = Format-PageName $OrderFileLine
+      $TocContents += "- name: $PageName`n"
+      $TocContents += "  href: $OrderFileLine/`n"
+      $TocContents += "  topicHref: $OrderFileLine/`n"
 
-    # If a directory exists with the name, then it has subitems
-    $SubDirectory = Join-Path $InputDir $OrderFileLine
-    if (Test-Path -Path $SubDirectory -PathType "Container") {
-      Copy-Tree -BaseDirectory $OrderFileLine -TocFileString ([ref]$SubTocContents)
+      # If a directory exists with the name, then it has subpages
+      $SubDirectory = Join-Path $InputDir $OrderFileLine
+      if (Test-Path -Path $SubDirectory -PathType "Container") {
+        Copy-Tree -InputBaseDirectory $OrderFileLine -OutputBaseDirectory $OrderFileLineForDestinationDir -TocFileString ([ref]$SubTocContents) -TargetAudience $TargetAudience
+      }
     }
     
     # Write section TOC file
     if ($SubTocContents.Length -gt 0) {
-      Set-Content -Path (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxTocFilename) -Value $SubTocContents
+      Set-Content -Path (Join-Path (Join-Path $OutputDir $OrderFileLineForDestinationDir) $DocFxTocFilename) -Value $SubTocContents
     }
   }
   # TOC file schrijven
