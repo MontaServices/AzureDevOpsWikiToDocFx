@@ -16,10 +16,8 @@ $SpecialsStartMarker = "[[" # For TOC and audience
 $SpecialsEndMarker = "]]"
 $TocMarker = "[[_TOC_]]"
 $AttachmentsDirName = "Attachments"
-$AudienceKeywords = $("Audience", "Doelgroep", "Doelgroepen") # TODO parameter
 
 $AllMarkers = @($TocMarker, $SpecialsMarker, $SpecialsStartMarker, $SpecialsEndMarker)
-$AudienceKeywords = $AudienceKeywords | Sort-Object Length -Descending # longest first
 
 #### Functions 
 
@@ -30,7 +28,8 @@ function Copy-Tree {
     [string]$OutputBaseDirectory,
     [ref]$TocFileString,
     [string[]]$TocSubdirectories,
-    [string]$TargetAudience
+    [string]$TargetAudience,
+    [string[]]$AudienceKeywords
   )
 
   if ($null -eq $TocSubdirectories) {
@@ -57,16 +56,8 @@ function Copy-Tree {
         $TocFileString.Value += "  " * ($TocSubdirectories.Count-1) + "  items:`n";
       }
 
-      foreach($SubdirectoryOrderFileLine in $SubdirectoryOrderFileLines) {
-        $Indent = "  " * $TocSubdirectories.Count
-        $Name = Format-PageName $SubdirectoryOrderFileLine
-        $TocFileString.Value += "$Indent- name: $Name`n"
-        $TocPathItems = $TocSubdirectories.Clone()
-        $TocPathItems += $SubdirectoryOrderFileLine
-        $TocFileString.Value += "$Indent  href: $($TocPathItems -join "/")/`n"
-        $TocFileString.Value += "$Indent  topicHref: $($TocPathItems -join "/")/`n"
-        
-        # Create directory and copy md file
+      foreach($SubdirectoryOrderFileLine in $SubdirectoryOrderFileLines) {        
+        # Create directory and md file paths
         $SubdirectoryOrderLineFileName = "$SubdirectoryOrderFileLine$MarkdownExtension"
 
         $NewDir = Join-Path $OutputDir $OutputBaseDirectory
@@ -75,7 +66,6 @@ function Copy-Tree {
         }
         $SubdirectoryOrderFileLineFileName = Format-PageFileName $SubdirectoryOrderFileLine
         $NewDir = Join-Path $NewDir $SubdirectoryOrderFileLineFileName
-        New-Item -ItemType "directory" -Path $NewDir | Out-Null # silent
 
         $CopyItemDestination = Join-Path $NewDir "index.md"
         $CopyItemPath = Join-Path $InputDir $InputBaseDirectory
@@ -83,11 +73,22 @@ function Copy-Tree {
           $CopyItemPath = Join-Path $CopyItemPath $TocSubDirectory
         }
         $CopyItemPath = Join-Path $CopyItemPath $SubdirectoryOrderLineFileName
-        $ContentWritten = Copy-MarkdownFile -Path $CopyItemPath -DestinationDir $NewDir -Destination $CopyItemDestination -Level ($TocSubdirectories.Count + 2)  -TargetAudience $TargetAudience
 
-        # Check for subdirectory with the same name for subpages
-        # Only if this page has been written
+        # write md file
+        $ContentWritten = Copy-MarkdownFile -Path $CopyItemPath -DestinationDir $NewDir -Destination $CopyItemDestination -Level ($TocSubdirectories.Count + 2)  -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords
+        
+        # If the page has been written (due to audience)
         if ($ContentWritten) {
+          # Add to TOC
+          $Indent = "  " * $TocSubdirectories.Count
+          $Name = Format-PageName $SubdirectoryOrderFileLine
+          $TocFileString.Value += "$Indent- name: $Name`n"
+          $TocPathItems = $TocSubdirectories.Clone()
+          $TocPathItems += $SubdirectoryOrderFileLine
+          $TocFileString.Value += "$Indent  href: $($TocPathItems -join "/")/`n"
+          $TocFileString.Value += "$Indent  topicHref: $($TocPathItems -join "/")/`n"
+
+          # Check for subdirectory with the same name for subpages
           $SubdirectoryOrderFileLineFormatted = Format-PageFileName $SubdirectoryOrderFileLine
           $SubSubDirectory = Join-Path $InputDirCurrent $SubdirectoryOrderFileLineFormatted
           if (Test-Path -Path $SubSubDirectory -PathType "Container") {
@@ -177,10 +178,9 @@ function Copy-MarkdownFile {
     [string]$DestinationDir,
     [string]$Destination,
     [int]$Level,
-    [string]$TargetAudience
+    [string]$TargetAudience,
+    [string[]]$AudienceKeywords
   )
-  
-  # TODO file niet schrijven als er geen audience aangegeven is in de file maar wel een TargetAudience
 
   $SpecialsMarkerStarted = 0
   $SpecialsStartMarkersStartedWithSilencedByAudience = New-Object System.Collections.Stack
@@ -188,6 +188,7 @@ function Copy-MarkdownFile {
   $Silent = $false
   $FirstLineWritten = $false
   $DestinationDirExists = $false
+  $AudiencePassedOnFirstLine = $false
 
   # Process each line in the file
   foreach($MdLine in Get-Content -Path $Path) {
@@ -221,9 +222,6 @@ function Copy-MarkdownFile {
                 # Get everything after "Audience:" or "Audience " or "Audience : "
                 $PartAfterAudience = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $AudienceKeyword.Length);
                 $PartAfterAudienceTrimmed = $PartAfterAudience.TrimStart().TrimStart(":").TrimStart()
-                
-                #$AudienceSpecified
-                #$PartAfterAudienceKeyword
 
                 $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ")
                 
@@ -250,12 +248,17 @@ function Copy-MarkdownFile {
                 # check audience
                 $SilenceByAudience = Get-SilenceByAudience -AudienceSpecified $AudienceSpecified -TargetAudience $TargetAudience
 
+                # If audience is valid, and we were on the start of the file, set variable
+                if (-not $FirstLineWritten -and -not $SilenceByAudience) {
+                  $AudiencePassedOnFirstLine = $true
+                }
+
                 # Check if the end marker is on this line
                 $EndMarkerPos = $PartAfterAudienceKeyword.IndexOf($SpecialsEndMarker)
 
-                # If we are at the start of the file, the audience is for the whole file, so we don't look at the end marker
+                # If the and marker is on this line, skip or retain part between markers
+                # Except if we are on the same line, then it counts for the whole file so we skip the end marker
                 if ($EndMarkerPos -gt -1 -and $FirstLineWritten) {
-                  # The end marker is on this line
                   $MdLine = $PartBeforeMarker 
 
                   # Part between end marker
@@ -267,6 +270,10 @@ function Copy-MarkdownFile {
                   $MdLine += $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length)
                 }
                 else {
+                  if ($EndMarkerPos -gt -1) {
+                    $PartAfterAudienceKeyword = $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length)
+                  }
+
                   # The end marker is not on this line
                   if (-not $SilenceByAudience) {
                     $MdLine = $PartBeforeMarker + $PartAfterAudienceKeyword
@@ -361,9 +368,9 @@ function Copy-MarkdownFile {
       $WriteLine = $false
     }
 
-    # If a TargetAudience is specified, but the content has nog audience specified, do not print it
+    # If a TargetAudience is specified, but the content has no audience specified, do not print it
     if ($TargetAudience.Length -gt 0) {
-      if ($SpecialsStartMarkersStartedWithSilencedByAudience.Count -le 0) {
+      if (-not $AudiencePassedOnFirstLine) {
         $WriteLine = $false
       }
     }
@@ -395,10 +402,11 @@ function Copy-MarkdownFile {
 # Main function of the script
 function Copy-DevOpsWikiToDocFx {
   param (
-    $InputDir, 
-    $OutputDir, 
-    $TemplateDir,
-    $TargetAudience
+    [string]$InputDir, 
+    [string]$OutputDir, 
+    [string]$TemplateDir,
+    [string]$TargetAudience,
+    [string[]]$AudienceKeywords
   )
 
   # Check parameters
@@ -423,6 +431,9 @@ function Copy-DevOpsWikiToDocFx {
     throw "TemplateDir does not exist"
   }
 
+  # Sort audience keywords by longest first
+  $AudienceKeywords = $AudienceKeywords | Sort-Object Length -Descending
+
   # Search .order file
 
   $OrderFilesFound = Get-ChildItem -Path $InputDir | Where-Object Name -eq $OrderFileName
@@ -440,7 +451,7 @@ function Copy-DevOpsWikiToDocFx {
 
   New-Item -ItemType "directory" -Path $OutputDir | Out-Null # create output dir (silent, output to null)
 
-  Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -DestinationDir $OutputDir -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0 -TargetAudience $TargetAudience
+  Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -DestinationDir $OutputDir -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0 -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords
 
   # Create TOC file and for the rest of the files in the .order file and copy files to the right directory
   $TocContents = ""
@@ -452,7 +463,7 @@ function Copy-DevOpsWikiToDocFx {
     # Markdown file in subdirectory    
     $OrderFileLineForDestinationDir = Format-PageFileName $OrderFileLine
     $DestinationDir = Join-Path $OutputDir $OrderFileLineForDestinationDir
-    $ContentWritten = Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -DestinationDir $DestinationDir -Destination (Join-Path $DestinationDir $DocFxSectionIntroductionFilename) -Level 1 -TargetAudience $TargetAudience
+    $ContentWritten = Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -DestinationDir $DestinationDir -Destination (Join-Path $DestinationDir $DocFxSectionIntroductionFilename) -Level 1 -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords
     
     # If file was written
     if ($ContentWritten) {
@@ -465,7 +476,7 @@ function Copy-DevOpsWikiToDocFx {
       # If a directory exists with the name, then it has subpages
       $SubDirectory = Join-Path $InputDir $OrderFileLine
       if (Test-Path -Path $SubDirectory -PathType "Container") {
-        Copy-Tree -InputBaseDirectory $OrderFileLine -OutputBaseDirectory $OrderFileLineForDestinationDir -TocFileString ([ref]$SubTocContents) -TargetAudience $TargetAudience
+        Copy-Tree -InputBaseDirectory $OrderFileLine -OutputBaseDirectory $OrderFileLineForDestinationDir -TocFileString ([ref]$SubTocContents) -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords
       }
     }
     
