@@ -50,7 +50,7 @@ try {
     . $ScriptPath
 
     Write-VstsTaskVerbose "Starting"
-    Copy-DevOpsWikiToDocFx -InputDir $InputDir -OutputDir $OutputDir -TemplateDir $TemplateDir -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywordsParsed
+    Copy-DevOpsWikiToDocFx -InputDir $SourceFolder -OutputDir $TargetFolder -TemplateDir $TemplateDir -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywordsParsed
 } finally {
     Trace-VstsLeavingInvocation $MyInvocation
 }

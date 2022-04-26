@@ -1,5 +1,5 @@
 {
-  "id": "20a0ad26-6f4d-4966-a8ec-61978feab4c9",
+  "id": "7026d207-862f-446e-bfd9-5d4b896c0851",
   "name": "AzureDevOpsWikiToDocFx-dev",
   "friendlyName": "AzureDevOpsWikiToDocFx Dev",
   "description": "This task creates a DocFX website out of your Azure DevOps wiki repository",
@@ -13,7 +13,7 @@
   "version": {
     "Major": "5",
     "Minor": "0",
-    "Patch": "0"
+    "Patch": "4"
   },
   "minimumAgentVersion": "1.95.0",
   "instanceNameFormat": "AzureDevOpsWikiToDocFx $(message)",

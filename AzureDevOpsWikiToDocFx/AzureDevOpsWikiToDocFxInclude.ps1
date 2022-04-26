@@ -94,7 +94,7 @@ function Copy-Tree {
           if (Test-Path -Path $SubSubDirectory -PathType "Container") {
             $NewTocSubdirectories = $TocSubdirectories.Clone()
             $NewTocSubdirectories += $SubdirectoryOrderFileLine
-            Copy-Tree -InputBaseDirectory $InputBaseDirectory -OutputBaseDirectory $OutputBaseDirectory -TocFileString ([ref]$SubTocContents) -TocSubdirectories $NewTocSubdirectories -TargetAudience $TargetAudience
+            Copy-Tree -InputBaseDirectory $InputBaseDirectory -OutputBaseDirectory $OutputBaseDirectory -TocFileString ([ref]$SubTocContents) -TocSubdirectories $NewTocSubdirectories -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords
           }
         }
       }

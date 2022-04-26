@@ -85,7 +85,7 @@ This is a test
     
             Set-Content -Path $Path -Value $InputFileContents
     
-            $ContentWritten = Copy-MarkdownFile -Path $Path -DestinationDir $TestDrive -Destination $Destination -Level 0
+            $ContentWritten = Copy-MarkdownFile -Path $Path -DestinationDir $TestDrive -Destination $Destination -Level 0 -AudienceKeywords "Audience"
             $ContentWritten | Should BeExactly $true
     
             $Output = Get-Content -Path $Destination -Raw
@@ -104,7 +104,7 @@ This is a test
     
             Set-Content -Path $Path -Value $InputFileContents
     
-            $ContentWritten = Copy-MarkdownFile -Path $Path -DestinationDir $TestDrive -Destination $Destination -Level 0 # No target audience
+            $ContentWritten = Copy-MarkdownFile -Path $Path -DestinationDir $TestDrive -Destination $Destination -Level 0 -AudienceKeywords "Audience" # No target audience
             $ContentWritten | Should BeExactly $false
     
             $OutputFileExists = Test-Path $Destination
@@ -123,7 +123,7 @@ This is a test
     
             Set-Content -Path $Path -Value $InputFileContents
     
-            $ContentWritten = Copy-MarkdownFile -Path $Path -DestinationDir $TestDrive -Destination $Destination -Level 0 -TargetAudience "Customers"
+            $ContentWritten = Copy-MarkdownFile -Path $Path -DestinationDir $TestDrive -Destination $Destination -Level 0 -AudienceKeywords "Audience" -TargetAudience "Customers"
             $ContentWritten | Should BeExactly $true
     
             $OutputFileExists = Test-Path $Destination
@@ -147,12 +147,44 @@ This is a test
     
             Set-Content -Path $Path -Value $InputFileContents
     
-            $ContentWritten = Copy-MarkdownFile -Path $Path -DestinationDir $TestDrive -Destination $Destination -Level 0 -TargetAudience "Customers"
+            $ContentWritten = Copy-MarkdownFile -Path $Path -DestinationDir $TestDrive -Destination $Destination -Level 0 -AudienceKeywords "Audience" -TargetAudience "Customers"
             $ContentWritten | Should BeExactly $false
     
             $OutputFileExists = Test-Path $Destination
     
             $OutputFileExists | Should Be $false
+        }
+
+        It "Target audience file and partial" {
+            $Path = Join-Path $TestDrive "Input5.md"
+            $Destination = Join-Path $TestDrive "Output5.md"
+    
+            $InputFileContents = @"
+[[Doelgroepen: IT, CS, WMS, Klanten]]
+
+[[Doelgroepen: IT, CS, WMS
+
+This is not for public
+
+]]
+
+This however is visible for public
+"@
+    
+            Set-Content -Path $Path -Value $InputFileContents
+
+            $ContentWritten = Copy-MarkdownFile -Path $Path -DestinationDir $TestDrive -Destination $Destination -Level 0 -AudienceKeywords @("Doelgroepen") -TargetAudience "Klanten"
+            $ContentWritten | Should BeExactly $true
+
+            $OutputFileExists = Test-Path $Destination
+
+            $OutputFileExists | Should Be $true
+
+            $OutputContents = Get-Content -Path $Destination -Raw
+            $OutputContents | Should Be @"
+This however is visible for public
+
+"@
         }
     }
 
