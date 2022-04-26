@@ -281,8 +281,8 @@ function Copy-MarkdownFile {
                   else {
                     $MdLine = $PartBeforeMarker
                     $SilenceAfterNextLine = $true
-                    $SpecialsStartMarkersStartedWithSilencedByAudience.Push($SilenceAfterNextLine)
                   }
+                  $SpecialsStartMarkersStartedWithSilencedByAudience.Push($SilenceAfterNextLine)
                 }
 
                 break # if an audience marker is found after the [[, do not search for other markers
@@ -372,6 +372,8 @@ function Copy-MarkdownFile {
     if ($TargetAudience.Length -gt 0) {
       if (-not $AudiencePassedOnFirstLine) {
         $WriteLine = $false
+        $FirstLineWritten = $true # We set this to true because a line would have been written
+        # if it was not skipped because of the audience
       }
     }
 
