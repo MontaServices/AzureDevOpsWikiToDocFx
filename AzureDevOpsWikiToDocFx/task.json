@@ -33,6 +33,22 @@
       "defaultValue": "",
       "required": true,
       "helpMarkDown": "Where the DocFX project should be written. It should not yet exist."
+    },
+    {
+      "name": "AudienceKeywords",
+      "type": "String",
+      "label": "Audience Keywords (comma seperated)",
+      "defaultValue": "Audience, Audiences",
+      "required": true,
+      "helpMarkDown": "The keywords used to specify one or more audience for a page or part of a page. Example for specifying audiences for part of a page: [[Audience: Customers, Staff This content is only visible for customers and staff.]]. If an audience is specified on the first of the file, the file will not be included if the audiences do not match."
+    },
+    {
+      "name": "TargetAudience",
+      "type": "String",
+      "label": "Target Audience",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Audience to target. If left empty, files or part of files with a audience specified will not be included."
     }
   ],
   "execution": {
