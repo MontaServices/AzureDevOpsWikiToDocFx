@@ -8,8 +8,9 @@ try {
     # Reading inputs
     $SourceFolder = Get-VstsInput -Name SourceFolder -Require
     $TargetFolder = Get-VstsInput -Name TargetFolder -Require
-    $AudienceKeywords = Get-VstsInput -Name AudienceKeywords -Require
-    $TargetAudience = Get-VstsInput -Name TargetAudience -Require
+    $AudienceKeywords = Get-VstsInput -Name AudienceKeywords
+    $TargetAudience = Get-VstsInput -Name TargetAudience
+    $TemplateDirName = Get-VstsInput -Name TemplateDir
 
     # Validating input
     Write-VstsTaskVerbose "Source folder: $SourceFolder"
@@ -33,12 +34,19 @@ try {
     Write-VstsTaskVerbose "Audience keywords: $AudienceKeywordsParsed"
 
     # Template dir
-    $SearchTemplateDir = Join-Path $SourceFolder ".docfx_template"
-    if (Test-Path -Path $SearchTemplateDir -PathType "Container") {
-        $TemplateDir = $SearchTemplateDir
-    }
-    else {
-        $TemplateDir = Join-Path $PSScriptRoot "docfx_template"
+    $TemplateDir = Join-Path $PSScriptRoot "docfx_template" # default
+
+    # if a template dir is specified in config, check if it exists and use it
+    if ($null -ne $TemplateDirName) {
+        if ($TemplateDirName.Length -gt 0) {
+            $SearchTemplateDir = Join-Path $SourceFolder $TemplateDirName
+            $TemplateDirFound = Test-Path -Path $SearchTemplateDir -PathType "Container"
+            if ($TemplateDirFound -ne $true)
+            {
+                throw "Template dir does not exist"
+            }
+            $TemplateDir = $SearchTemplateDir
+        }
     }
     
     Write-VstsTaskVerbose "Template directory: $TemplateDir"

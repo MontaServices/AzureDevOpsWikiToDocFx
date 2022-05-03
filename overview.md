@@ -19,21 +19,37 @@ This project contains a modified version of the default DocFX template to get ev
 
 To use your own docfx template, copy the template files in this repository to adirectory named ".docfx_template" in your wiki repository. Then modify the template to your needs. 
 
-# Hiding content
+# Targeting differerent audiences
 
-To hide content, surround it with "::: private" and ":::". E.g.:
+A page or part a page can be made visible for certain audiences only.
+
+In the task configuration you can specify a 'target audience'.
+
+To include a page only for Customers for example, specify "Customers" as target audience and put this line on top of the file.
 
 ```
-Content publicly visible in the DocFX website.
-
-::: private
-This will not be visible in the DocFX website.
-::: 
-
-This will be visible again. 
+[[Audience: Customers]]
 ```
+
+To hide part of a page use:
+
+```
+[[Audience: Customers
+
+This line is only included when Customers is specified as target audience.
+
+]]
+```
+
+Including content for multiple audiences is also possible. E.g.: `[[Audience: Customers,Staff]]`
+
+If a target audience is specified in the task configuration, and a page has no audience specified on top, the file will not be included.
 
 # Usage
+
+You can use this task in build and release.
+
+## Build 
 
 With a azure-pipelines.yml build file below, an artifact with the website files will be created. 
 This you can release to a webserver.
@@ -59,3 +75,7 @@ steps:
     ArtifactName: 'drop'
     publishLocation: 'Container'
 ```
+
+## Release
+
+Works quite the same as in a build pipeline.

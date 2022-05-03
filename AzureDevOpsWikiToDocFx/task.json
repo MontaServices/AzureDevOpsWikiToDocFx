@@ -13,7 +13,7 @@
   "version": {
     "Major": "5",
     "Minor": "0",
-    "Patch": "4"
+    "Patch": "7"
   },
   "minimumAgentVersion": "1.95.0",
   "instanceNameFormat": "AzureDevOpsWikiToDocFx $(message)",
@@ -39,7 +39,7 @@
       "type": "String",
       "label": "Audience Keywords (comma seperated)",
       "defaultValue": "Audience, Audiences",
-      "required": true,
+      "required": false,
       "helpMarkDown": "The keywords used to specify one or more audience for a page or part of a page. Example for specifying audiences for part of a page: [[Audience: Customers, Staff This content is only visible for customers and staff.]]. If an audience is specified on the first of the file, the file will not be included if the audiences do not match."
     },
     {
@@ -49,6 +49,14 @@
       "defaultValue": "",
       "required": false,
       "helpMarkDown": "Audience to target. If left empty, files or part of files with a audience specified will not be included."
+    },
+    {
+      "name": "TemplateDir",
+      "type": "String",
+      "label": "Template directory name",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Name of the directory in the source folder containing the DocFX template files. If the directory does not exist, the default template is used. Example: .docfx_template"
     }
   ],
   "execution": {
