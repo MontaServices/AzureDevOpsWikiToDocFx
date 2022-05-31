@@ -75,13 +75,13 @@ function Copy-Tree {
         $CopyItemPath = Join-Path $CopyItemPath $SubdirectoryOrderLineFileName
 
         # write md file
-        $ContentWritten = Copy-MarkdownFile -Path $CopyItemPath -DestinationDir $NewDir -Destination $CopyItemDestination -Level ($TocSubdirectories.Count + 2)  -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords
+        $Name = Format-PageName $SubdirectoryOrderFileLine
+        $ContentWritten = Copy-MarkdownFile -Path $CopyItemPath -DestinationDir $NewDir -Destination $CopyItemDestination -Level ($TocSubdirectories.Count + 2)  -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords -PageTitle $Name
         
         # If the page has been written (due to audience)
         if ($ContentWritten) {
           # Add to TOC
           $Indent = "  " * $TocSubdirectories.Count
-          $Name = Format-PageName $SubdirectoryOrderFileLine
           $TocFileString.Value += "$Indent- name: $Name`n"
           $TocPathItems = $TocSubdirectories.Clone()
           $TocPathItems += $SubdirectoryOrderFileLine
@@ -179,7 +179,8 @@ function Copy-MarkdownFile {
     [string]$Destination,
     [int]$Level,
     [string]$TargetAudience,
-    [string[]]$AudienceKeywords
+    [string[]]$AudienceKeywords,
+    [string]$PageTitle
   )
 
   $SpecialsMarkerStarted = 0
@@ -355,6 +356,34 @@ function Copy-MarkdownFile {
     $RelativePathPrefix = "../" * $Level
     $MdLine = $MdLine.Replace("](/", "]($RelativePathPrefix")
 
+    # change h1 to h2, h2 to h3, and so on
+    if ($MdLine.StartsWith("#"))
+    {
+      $MdLine = "#" + $MdLine 
+    }
+
+    # change images with a specified width so DocFX understands them
+    if ($MdLine.Contains("!["))
+    {
+      $RegexImageMatch = [regex]::Match($MdLine, "!\[.*\]\((.+) =([0-9]+)x([0-9]*)\)")
+
+      if ($RegexImageMatch.Success)
+      {
+        $MdLineBefore = $MdLine.Substring(0, $RegexImageMatch.Index)
+        $MdLineAfter = $MdLine.Substring($RegexImageMatch.Index + $RegexImageMatch.Length)
+
+        $MdLine = $MdLineBefore
+        $MdLine += "<img src=""" + $RegexImageMatch.Groups[1] + """"
+        $MdLine += " width=""" + $RegexImageMatch.Groups[2] + """"
+        if ($RegexImageMatch.Groups[3].Length -gt 0) {
+          $MdLine += " height=""" + $RegexImageMatch.Groups[3] + """"
+        }
+        $MdLine += " />"
+        $MdLine += $MdLineAfter
+      }
+    }
+
+    # here follow checks if the line should be written
     $WriteLine = $true
 
     # Don't write empty lines at the start of the file or if it was requested
@@ -387,6 +416,17 @@ function Copy-MarkdownFile {
         $DestinationDirExists = $true
       }
 
+      # if this is the first line, add the title first
+      if (-not $FirstLineWritten) {
+        if ($null -ne $PageTitle) {
+          if ($PageTitle.Length -gt 0) {
+            Add-Content -Path $Destination -Value "# $PageTitle"
+            Add-Content -Path $Destination -Value ""
+          }
+        }
+      }
+
+      # Write the line
       Add-Content -Path $Destination -Value $MdLine
       $ContentWritten = $true
       $FirstLineWritten = $true
@@ -453,7 +493,8 @@ function Copy-DevOpsWikiToDocFx {
 
   New-Item -ItemType "directory" -Path $OutputDir | Out-Null # create output dir (silent, output to null)
 
-  Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -DestinationDir $OutputDir -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0 -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords
+  $HomepageTitle = Format-PageName $OrderFileLines[0]
+  Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -DestinationDir $OutputDir -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0 -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords -PageTitle $HomepageTitle
 
   # Create TOC file and for the rest of the files in the .order file and copy files to the right directory
   $TocContents = ""
@@ -465,12 +506,12 @@ function Copy-DevOpsWikiToDocFx {
     # Markdown file in subdirectory    
     $OrderFileLineForDestinationDir = Format-PageFileName $OrderFileLine
     $DestinationDir = Join-Path $OutputDir $OrderFileLineForDestinationDir
-    $ContentWritten = Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -DestinationDir $DestinationDir -Destination (Join-Path $DestinationDir $DocFxSectionIntroductionFilename) -Level 1 -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords
+    $PageName = Format-PageName $OrderFileLine
+    $ContentWritten = Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -DestinationDir $DestinationDir -Destination (Join-Path $DestinationDir $DocFxSectionIntroductionFilename) -Level 1 -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords -PageTitle $PageName
     
     # If file was written
     if ($ContentWritten) {
       # Toc
-      $PageName = Format-PageName $OrderFileLine
       $TocContents += "- name: $PageName`n"
       $TocContents += "  href: $OrderFileLine/`n"
       $TocContents += "  topicHref: $OrderFileLine/`n"
