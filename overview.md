@@ -23,7 +23,7 @@ To use your own docfx template, copy the template files in this repository to ad
 
 A page or part a page can be made visible for certain audiences only.
 
-In the task configuration you can specify a 'target audience'.
+In the task configuration you can specify one or more 'target audiences'.
 
 To include a page only for Customers for example, specify "Customers" as target audience and put this line on top of the file.
 

@@ -135,10 +135,14 @@ function Get-SilenceByAudience {
     else {
       # Target audience, audience specified
       $AudiencesSpecified = $AudienceSpecified.Split(',')
+      $TargetAudiences = $TargetAudience.Split(',')
       foreach($AudiencesSpecifiedPart in $AudiencesSpecified) {
         $AudiencesSpecifiedPart = $AudiencesSpecifiedPart.Trim()
-        if ($AudiencesSpecifiedPart -eq $TargetAudience) {
-          return $false
+        foreach($TargetAudiencesPart in $TargetAudiences) {
+          $TargetAudiencesPart = $TargetAudiencesPart.Trim()
+          if ($AudiencesSpecifiedPart -eq $TargetAudiencesPart) {
+            return $false
+          }
         }
       }
       return $true

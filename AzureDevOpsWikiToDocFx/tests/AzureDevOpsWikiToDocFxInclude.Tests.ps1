@@ -61,6 +61,34 @@ Describe "AzureDevOpsWikiToDocFx" {
             $Silence = Get-SilenceByAudience -AudienceSpecified $AudienceSpecified -TargetAudience $TargetAudience
             $Silence | Should Be $true
         }
+        
+        It "One audience specified, multiple targeted, match" {
+            $AudienceSpecified = "IT"
+            $TargetAudience = "Monta, IT"
+            $Silence = Get-SilenceByAudience -AudienceSpecified $AudienceSpecified -TargetAudience $TargetAudience
+            $Silence | Should Be $false
+        }
+        
+        It "One audience specified, multiple targeted, no match" {
+            $AudienceSpecified = "Customers"
+            $TargetAudience = "Monta, IT"
+            $Silence = Get-SilenceByAudience -AudienceSpecified $AudienceSpecified -TargetAudience $TargetAudience
+            $Silence | Should Be $true
+        }
+        
+        It "Multiple audience specified, multiple targeted, match" {
+            $AudienceSpecified = "Monta, IT, Customers"
+            $TargetAudience = "Monta, IT"
+            $Silence = Get-SilenceByAudience -AudienceSpecified $AudienceSpecified -TargetAudience $TargetAudience
+            $Silence | Should Be $false
+        }
+        
+        It "Multiple audience specified, multiple targeted, no match" {
+            $AudienceSpecified = "Customers, WMS"
+            $TargetAudience = "Monta, IT"
+            $Silence = Get-SilenceByAudience -AudienceSpecified $AudienceSpecified -TargetAudience $TargetAudience
+            $Silence | Should Be $true
+        }
     }
 
     Context "Copy-MarkdownFile with audience" {

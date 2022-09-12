@@ -13,7 +13,7 @@
   "version": {
     "Major": "5",
     "Minor": "0",
-    "Patch": "8"
+    "Patch": "9"
   },
   "minimumAgentVersion": "1.95.0",
   "instanceNameFormat": "AzureDevOpsWikiToDocFx $(message)",
@@ -45,10 +45,10 @@
     {
       "name": "TargetAudience",
       "type": "String",
-      "label": "Target Audience",
+      "label": "Target Audiences (comma seperated)",
       "defaultValue": "",
       "required": false,
-      "helpMarkDown": "Audience to target. If left empty, files or part of files with a audience specified will not be included."
+      "helpMarkDown": "Audiences to target. If left empty, files or part of files with a audience specified will not be included."
     },
     {
       "name": "TemplateDir",
