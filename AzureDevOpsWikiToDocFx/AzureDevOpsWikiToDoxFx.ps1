@@ -182,7 +182,7 @@ if ($OrderFilesFound.Count -ne 1) {
 }
 
 # Create homepage for first file in de .order file
-$OrderFileLines = Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name)
+$OrderFileLines = @(Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name))
 
 if ($OrderFileLines.Count -lt 1) {
   Throw "$OrderFileName file in Input directory is empty"
