@@ -194,7 +194,7 @@ Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExte
 
 # Create TOC file and for the rest of the files in the .order file and copy files to the right directory
 $TocContents = ""
-foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
+foreach($OrderFileLine in ($OrderFileLines))
 {
   $TocContents += "- name: $OrderFileLine`n"
   $TocContents += "  href: $OrderFileLine/`n"
