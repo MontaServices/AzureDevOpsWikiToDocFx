@@ -74,7 +74,7 @@ function Copy-Tree {
     }
 
     # Get lines in .order file
-    $SubdirectoryOrderFileLines = Get-Content -Path $SubDirectoryOrderFile.FullName
+    $SubdirectoryOrderFileLines = @(Get-Content -Path $SubDirectoryOrderFile.FullName)
     if ($SubdirectoryOrderFileLines.Count -gt 0) {
 
       if ($TocSubdirectories.Count -gt 0) {
@@ -131,7 +131,7 @@ function Copy-MarkdownFile {
   $ThreeDotsStarted = 0;
   $Silent = $false
   $ContentWritten = $false
-  foreach($MdLine in Get-Content -Path $Path) {
+  foreach($MdLine in @(Get-Content -Path $Path)) {
     # Process ::: marker for mermaid and private (content to hide)
     if ($MdLine.TrimStart().StartsWith($SpecialsMarker))
     {
