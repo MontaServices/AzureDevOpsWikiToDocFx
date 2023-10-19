@@ -194,9 +194,25 @@ function Copy-MarkdownFile {
   $FirstLineWritten = $false
   $DestinationDirExists = $false
   $AudiencePassedOnFirstLine = $false
+  
+  
+  # 
+  $OrderFileLines = Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name)
+  $OrderFileLinesCount = $OrderFileLines.Count
+
+  $MdFilePath = Join-Path $InputDir "$OrderFileLines$MarkdownExtension"
+
+  # $MdContent = Get-Content -Path $MdFilePath
+  
+  # Process each line in the file
+  if ($OrderFileLinesCount -gt 1)
+  {
+	  $MdFilePath = $Path
+  }
+	  
 
   # Process each line in the file
-  foreach($MdLine in Get-Content -Path $Path) {
+  foreach($MdLine in Get-Content -Path $MdFilePath) {
     $MdLine = $MdLine.Trim()
     $SilenceAfterNextLine = $false;
     $DoNotWriteLineIfItsEmpty = $false
@@ -536,9 +552,17 @@ function Copy-DevOpsWikiToDocFx {
   if ($TocContents.Length -gt 0) {
     Set-Content -Path (Join-Path $OutputDir $DocFxTocFilename) -Value $TocContents
   }
+  $AttachmentsSourcePath = Join-Path $InputDir ".attachments"
+  $AttachmentsDestinationPath = Join-Path $OutputDir $AttachmentsDirName
+  if (Test-Path -Path $AttachmentsSourcePath -PathType Container) {
+	  Copy-Item -Path $AttachmentsSourcePath -Destination $AttachmentsDestinationPath -Recurse
+	  } else {
+		  Write-Host "No .attachments folder found. Skipping attachment copy."
+		  }
 
   # Copy attachments dir
-  Copy-Item -Path (Join-Path $InputDir ".attachments") -Destination (Join-Path $OutputDir $AttachmentsDirName) -Recurse
+  
+ # Copy-Item -Path (Join-Path $InputDir ".attachments") -Destination (Join-Path $OutputDir $AttachmentsDirName) -Recurse
 
   # Copy template dir
   $DocFxTemplateDirName = "docfx_template"
