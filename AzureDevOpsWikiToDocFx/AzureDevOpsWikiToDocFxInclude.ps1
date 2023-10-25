@@ -195,20 +195,27 @@ function Copy-MarkdownFile {
   $DestinationDirExists = $false
   $AudiencePassedOnFirstLine = $false
   
-  
-  # 
   $OrderFileLines = Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name)
   $OrderFileLinesCount = $OrderFileLines.Count
 
   $MdFilePath = Join-Path $InputDir "$OrderFileLines$MarkdownExtension"
-
-  # $MdContent = Get-Content -Path $MdFilePath
-  
-  # Process each line in the file
   if ($OrderFileLinesCount -gt 1)
   {
 	  $MdFilePath = $Path
   }
+  
+  if (-not (Test-Path -Path $MdFilePath -PathType Leaf) -and -not (Test-Path -Path $Path -PathType Leaf)) {
+	  Write-Host "File not found: $Path, skipping..."
+	  return $false
+	  }
+
+  # 
+
+
+  # $MdContent = Get-Content -Path $MdFilePath
+  
+  # Process each line in the file
+
 	  
 
   # Process each line in the file
