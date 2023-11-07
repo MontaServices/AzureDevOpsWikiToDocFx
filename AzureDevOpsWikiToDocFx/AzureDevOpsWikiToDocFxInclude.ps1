@@ -102,6 +102,7 @@ function Copy-Tree {
   }
 }
 
+
 function Get-SilenceByAudience {
   param (
     [string]$AudienceSpecified,
@@ -177,273 +178,273 @@ function Format-PageName {
 
 # Function to copy an Azure Devops wiki file to a DocFX file
 function Copy-MarkdownFile {
-  param (
-    [string]$Path,
-    [string]$DestinationDir,
-    [string]$Destination,
-    [int]$Level,
-    [string]$TargetAudience,
-    [string[]]$AudienceKeywords,
-    [string]$PageTitle
-  )
+    param (
+        [string]$Path,
+        [string]$DestinationDir,
+        [string]$Destination,
+        [int]$Level,
+        [string]$TargetAudience,
+        [string[]]$AudienceKeywords,
+        [string]$PageTitle
+    )
 
-  $SpecialsMarkerStarted = 0
-  $SpecialsStartMarkersStartedWithSilencedByAudience = New-Object System.Collections.Stack
-  $ContentWritten = $false
-  $Silent = $false
-  $FirstLineWritten = $false
-  $DestinationDirExists = $false
-  $AudiencePassedOnFirstLine = $false
+    $SpecialsMarkerStarted = 0
+    $SpecialsStartMarkersStartedWithSilencedByAudience = New-Object System.Collections.Stack
+    $ContentWritten = $false
+    $Silent = $false
+    $FirstLineWritten = $false
+    $DestinationDirExists = $false
+    $AudiencePassedOnFirstLine = $false
 
-  # Process each line in the file
-  foreach($MdLine in Get-Content -Path $Path) {
-    $MdLine = $MdLine.Trim()
-    $SilenceAfterNextLine = $false;
-    $DoNotWriteLineIfItsEmpty = $false
+    $OrderFileLines = Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name)
+    $OrderFileLinesCount = $OrderFileLines.Count
 
-    # Loop trough each position in the string to process markers
-    $Start = 0
-    while ($Start -lt $MdLine.Length) {
-      # Check for each marker if its found on this position
-      foreach($Marker in $AllMarkers) {
-        if ($MdLine.Length -ge ($Start+($Marker.Length)) -and $MdLine.Substring($Start, $Marker.Length) -eq $Marker) {
-          # A marker is found
+    $MdFilePath = Join-Path $InputDir "$OrderFileLines$MarkdownExtension"
+    if ($OrderFileLinesCount -gt 1) {
+        $MdFilePath = $Path
+    }
 
-          if ($Marker -eq $TocMarker) { # [[_TOC_]]
-            # Remove TOC marker from line
-            $PartBeforeMarker = $MdLine.Substring(0, $Start)
-            $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
-            $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
-            $MdLine = $PartBeforeMarker + $PartAfterMarkerTrimmed
-            $DoNotWriteLineIfItsEmpty = $true # Do not write the line if the TOC was the only thing on this line
-          }
-          elseif ($Marker -eq $SpecialsStartMarker) { # [[
-            $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
-            $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
-            # turn "[[ Audience" into ...
-            foreach($AudienceKeyword in $AudienceKeywords) {
-              if ($PartAfterMarkerTrimmed.StartsWith($AudienceKeyword)) {
-                $PartBeforeMarker = $MdLine.Substring(0, $Start)
-                # Get everything after "Audience:" or "Audience " or "Audience : "
-                $PartAfterAudience = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $AudienceKeyword.Length);
-                $PartAfterAudienceTrimmed = $PartAfterAudience.TrimStart().TrimStart(":").TrimStart()
+    if (-not (Test-Path -Path $MdFilePath -PathType Leaf) -and -not (Test-Path -Path $Path -PathType Leaf)) {
+        Write-Host "File not found: $Path, skipping..."
+        return $false
+    }
 
-                $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ")
-                
-                # if it ends with a comma, get until the next space
-                while ($RestOfLineSpaceIndex -gt -1 -and $PartAfterAudienceTrimmed[$RestOfLineSpaceIndex-1] -eq ",") {
-                  $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ", $RestOfLineSpaceIndex+1)
+    $contentBuilder = [System.Text.StringBuilder]::new()
+
+    foreach ($MdLine in Get-Content -Path $MdFilePath) {
+        $MdLine = $MdLine.Trim()
+        $SilenceAfterNextLine = $false;
+        $DoNotWriteLineIfItsEmpty = $false
+
+        # Loop through each position in the string to process markers
+        $Start = 0
+        while ($Start -lt $MdLine.Length) {
+            # Check for each marker if it's found on this position
+            foreach ($Marker in $AllMarkers) {
+                if ($MdLine.Length -ge ($Start + ($Marker.Length)) -and $MdLine.Substring($Start, $Marker.Length) -eq $Marker) {
+                    # A marker is found
+
+                    if ($Marker -eq $TocMarker) { # [[_TOC_]]
+                        # Remove TOC marker from line
+                        $PartBeforeMarker = $MdLine.Substring(0, $Start)
+                        $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
+                        $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
+                        $MdLine = $PartBeforeMarker + $PartAfterMarkerTrimmed
+                        $DoNotWriteLineIfItsEmpty = $true # Do not write the line if the TOC was the only thing on this line
+                    }
+                    elseif ($Marker -eq $SpecialsStartMarker) { # [[
+                        $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
+                        $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
+                        # turn "[[ Audience" into ...
+                        foreach ($AudienceKeyword in $AudienceKeywords) {
+                            if ($PartAfterMarkerTrimmed.StartsWith($AudienceKeyword)) {
+                                $PartBeforeMarker = $MdLine.Substring(0, $Start)
+                                # Get everything after "Audience:" or "Audience " or "Audience : "
+                                $PartAfterAudience = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $AudienceKeyword.Length);
+                                $PartAfterAudienceTrimmed = $PartAfterAudience.TrimStart().TrimStart(":").TrimStart()
+
+                                $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ")
+
+                                # if it ends with a comma, get until the next space
+                                while ($RestOfLineSpaceIndex -gt -1 -and $PartAfterAudienceTrimmed[$RestOfLineSpaceIndex - 1] -eq ",") {
+                                    $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ", $RestOfLineSpaceIndex + 1)
+                                }
+
+                                # For if there is no content after the audience at all, but the end marker immediately
+                                $RestOfLineEndMarkerIndex = $PartAfterAudienceTrimmed.IndexOf($SpecialsEndMarker)
+                                if ($RestOfLineEndMarkerIndex -gt -1 -and ($RestOfLineEndMarkerIndex -lt $RestOfLineSpaceIndex -or $RestOfLineSpaceIndex -lt 0)) {
+                                    $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineEndMarkerIndex)
+                                    $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineEndMarkerIndex) # After the space
+                                }
+                                elseif ($RestOfLineSpaceIndex -lt 0) {
+                                    $AudienceSpecified = $PartAfterAudienceTrimmed
+                                    $PartAfterAudienceKeyword = ""
+                                }
+                                else {
+                                    $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineSpaceIndex)
+                                    $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineSpaceIndex + 1) # After the space
+                                }
+
+                                # check audience
+                                $SilenceByAudience = Get-SilenceByAudience -AudienceSpecified $AudienceSpecified -TargetAudience $TargetAudience
+
+                                # If audience is valid, and we were on the start of the file, set the variable
+                                if (-not $FirstLineWritten -and -not $SilenceByAudience) {
+                                    $AudiencePassedOnFirstLine = $true
+                                }
+
+                                # Check if the end marker is on this line
+                                $EndMarkerPos = $PartAfterAudienceKeyword.IndexOf($SpecialsEndMarker)
+
+                                # If the end marker is on this line, skip or retain part between markers
+                                # Except if we are on the same line, then it counts for the whole file so we skip the end marker
+                                if ($EndMarkerPos -gt -1 -and $FirstLineWritten) {
+                                    $MdLine = $PartBeforeMarker
+
+                                    # Part between end marker
+                                    if (-not $SilenceByAudience) {
+                                        $MdLine += $PartAfterAudienceKeyword.Substring(0, $EndMarkerPos)
+                                    }
+
+                                    # Part after end marker
+                                    $MdLine += $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length)
+                                }
+                                else {
+                                    if ($EndMarkerPos -gt -1) {
+                                        $PartAfterAudienceKeyword = $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length)
+                                    }
+
+                                    # The end marker is not on this line
+                                    if (-not $SilenceByAudience) {
+                                        $MdLine = $PartBeforeMarker + $PartAfterAudienceKeyword
+                                    }
+                                    else {
+                                        $MdLine = $PartBeforeMarker
+                                        $SilenceAfterNextLine = $true
+                                    }
+                                    $SpecialsStartMarkersStartedWithSilencedByAudience.Push($SilenceAfterNextLine)
+                                }
+
+                                break # if an audience marker is found after the [[, do not search for other markers
+                            }
+                        }
+                    }
+                    elseif ($Marker -eq $SpecialsEndMarker) { # ]]
+                        # if we are in a start marker [[
+                        if ($SpecialsStartMarkersStartedWithSilencedByAudience.Count -gt 0) {
+                            $SpecialsStartMarkersStartedWithSilencedByAudience.Pop() | Out-Null
+
+                            if ($Silent -eq $true) {
+                                $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length).TrimStart()
+                                $MdLine = $PartAfterMarker
+
+                                # Check if we are still in a marker that is silenced
+                                $AreWeStillSilenced = $false
+                                foreach ($SilencedByMarker in $SpecialsStartMarkersStartedWithSilencedByAudience) {
+                                    if ($SilencedByMarker -eq $true) {
+                                        $AreWeStillSilenced = $true
+                                        break
+                                    }
+                                }
+
+                                if ($AreWeStillSilenced -eq $false) {
+                                    $Silent = $false
+                                }
+                            }
+                            else {
+                                $PartBeforeMarker = $MdLine.Substring(0, $Start)
+                                $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length).TrimStart()
+                                $MdLine = $PartBeforeMarker + $PartAfterMarker
+                            }
+                        }
+                    }
+                    elseif ($Marker -eq $SpecialsMarker) { # :::
+                        $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
+                        $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
+                        # turn "::: mermaid" into a div
+                        if ($PartAfterMarkerTrimmed.StartsWith($MermaidKeyword)) {
+                            $PartBeforeMarker = $MdLine.Substring(0, $Start)
+                            $PartAfterMermaid = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $MermaidKeyword.Length);
+                            $PartToInsert = "<div class=`"$MermaidKeyword`">"
+                            $MdLine = $PartBeforeMarker + $PartToInsert + $PartAfterMermaid
+                            $Start += $PartToInsert.Length
+                            $SpecialsMarkerStarted += 1
+                        }
+                        # turn ":::" into an end div (if a div was started)
+                        elseif ($SpecialsMarkerStarted -gt 0) {
+                            $PartBeforeMarker = $MdLine.Substring(0, $Start)
+                            $PartToInsert = "</div>"
+                            $MdLine = $PartBeforeMarker + $PartToInsert + $PartAfterMarker
+                            $Start += $PartToInsert.Length
+                            $SpecialsMarkerStarted -= 1
+                        }
+                    }
                 }
-
-                # For if there is no content after the audience at all, but the endmarker immediately
-                $RestOfLineEndMarkerIndex = $PartAfterAudienceTrimmed.IndexOf($SpecialsEndMarker)
-                if ($RestOfLineEndMarkerIndex -gt -1 -and ($RestOfLineEndMarkerIndex -lt $RestOfLineSpaceIndex -or $RestOfLineSpaceIndex -lt 0)) {
-                  $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineEndMarkerIndex)
-                  $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineEndMarkerIndex) # After the space
-                }
-                elseif ($RestOfLineSpaceIndex -lt 0) {
-                  $AudienceSpecified = $PartAfterAudienceTrimmed
-                  $PartAfterAudienceKeyword = ""
-                }
-                else {
-                  $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineSpaceIndex)
-                  $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineSpaceIndex + 1) # After the space
-                }
-
-                # check audience
-                $SilenceByAudience = Get-SilenceByAudience -AudienceSpecified $AudienceSpecified -TargetAudience $TargetAudience
-
-                # If audience is valid, and we were on the start of the file, set variable
-                if (-not $FirstLineWritten -and -not $SilenceByAudience) {
-                  $AudiencePassedOnFirstLine = $true
-                }
-
-                # Check if the end marker is on this line
-                $EndMarkerPos = $PartAfterAudienceKeyword.IndexOf($SpecialsEndMarker)
-
-                # If the and marker is on this line, skip or retain part between markers
-                # Except if we are on the same line, then it counts for the whole file so we skip the end marker
-                if ($EndMarkerPos -gt -1 -and $FirstLineWritten) {
-                  $MdLine = $PartBeforeMarker 
-
-                  # Part between end marker
-                  if (-not $SilenceByAudience) {
-                    $MdLine += $PartAfterAudienceKeyword.Substring(0, $EndMarkerPos)
-                  }
-
-                  # Part after end marker
-                  $MdLine += $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length)
-                }
-                else {
-                  if ($EndMarkerPos -gt -1) {
-                    $PartAfterAudienceKeyword = $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length)
-                  }
-
-                  # The end marker is not on this line
-                  if (-not $SilenceByAudience) {
-                    $MdLine = $PartBeforeMarker + $PartAfterAudienceKeyword
-                  }
-                  else {
-                    $MdLine = $PartBeforeMarker
-                    $SilenceAfterNextLine = $true
-                  }
-                  $SpecialsStartMarkersStartedWithSilencedByAudience.Push($SilenceAfterNextLine)
-                }
-
-                break # if an audience marker is found after the [[, do not search for other markers
-              }
             }
-          }
-          elseif ($Marker -eq $SpecialsEndMarker) { # ]]
-            # if we are in a start marker [[
-            if ($SpecialsStartMarkersStartedWithSilencedByAudience.Count -gt 0) {
 
-              $SpecialsStartMarkersStartedWithSilencedByAudience.Pop() | Out-Null
+            $Start += 1
+        }
 
-              if ($Silent -eq $true)
-              {
-                $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length).TrimStart()
-                $MdLine = $PartAfterMarker
-                
-                # Check if we are still in a marker which is silenced
-                $AreWeStillSilenced = $false
-                foreach($SilencedByMarker in $SpecialsStartMarkersStartedWithSilencedByAudience) {
-                  if ($SilencedByMarker -eq $true) {
-                    $AreWeStillSilenced = $true
-                    break
-                  }
+        # Process images link path
+        $MdLine = $MdLine.Replace("](/.attachments", "](/$AttachmentsDirName")
+
+        # Make absolute links relative
+        $RelativePathPrefix = "../" * $Level
+        $MdLine = $MdLine.Replace("](/", "]($RelativePathPrefix")
+
+        # change h1 to h2, h2 to h3, and so on
+        if ($MdLine.StartsWith("#")) {
+            $MdLine = "#" + $MdLine
+        }
+
+        # change images with a specified width so DocFX understands them
+        if ($MdLine.Contains("![")) {
+            $RegexImageMatch = [regex]::Match($MdLine, "!\[.*\]\((.+) =([0-9]+)x([0-9]*)\)")
+
+            if ($RegexImageMatch.Success) {
+                $MdLineBefore = $MdLine.Substring(0, $RegexImageMatch.Index)
+                $MdLineAfter = $MdLine.Substring($RegexImageMatch.Index + $RegexImageMatch.Length)
+
+                $MdLine = $MdLineBefore
+                $MdLine += "<img src=""" + $RegexImageMatch.Groups[1] + """"
+                $MdLine += " width=""" + $RegexImageMatch.Groups[2] + """"
+                if ($RegexImageMatch.Groups[3].Length -gt 0) {
+                    $MdLine += " height=""" + $RegexImageMatch.Groups[3] + """"
                 }
-  
-                if ($AreWeStillSilenced -eq $false) {
-                  $Silent = $false
-                }
-
-              }
-              else {
-                $PartBeforeMarker = $MdLine.Substring(0, $Start)
-                $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length).TrimStart()
-                $MdLine = $PartBeforeMarker + $PartAfterMarker               
-              }              
+                $MdLine += " />"
+                $MdLine += $MdLineAfter
             }
-          }
-          elseif ($Marker -eq $SpecialsMarker) { # :::
-            $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
-            $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
-            # turn "::: mermaid" into a div
-            if ($PartAfterMarkerTrimmed.StartsWith($MermaidKeyword)) {
-              $PartBeforeMarker = $MdLine.Substring(0, $Start)
-              $PartAfterMermaid = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $MermaidKeyword.Length);
-              $PartToInsert = "<div class=`"$MermaidKeyword`">"
-              $MdLine = $PartBeforeMarker + $PartToInsert + $PartAfterMermaid
-              $Start += $PartToInsert.Length
-              $SpecialsMarkerStarted += 1
+        }
+
+        # here follow checks if the line should be written
+        $WriteLine = $true
+
+        # Don't write empty lines at the start of the file or if it was requested
+        if ($MdLine.Length -lt 1) {
+            if ($DoNotWriteLineIfItsEmpty -eq $true -or $FirstLineWritten -eq $false) {
+                $WriteLine = $false
             }
-            # turn ":::" into an end div (if a div was started)
-            elseif ($SpecialsMarkerStarted -gt 0) {
-              $PartBeforeMarker = $MdLine.Substring(0, $Start)
-              $PartToInsert = "</div>"
-              $MdLine = $PartBeforeMarker + $PartToInsert + $PartAfterMarker
-              $Start += $PartToInsert.Length
-              $SpecialsMarkerStarted -= 1
+        }
+
+        if ($Silent) {
+            $WriteLine = $false
+        }
+
+        # If a TargetAudience is specified, but the content has no audience specified, do not print it
+        if ($TargetAudience.Length -gt 0) {
+            if (-not $AudiencePassedOnFirstLine) {
+                $WriteLine = $false
+                $FirstLineWritten = $true # We set this to true because a line would have been written
+                # if it was not skipped because of the audience
             }
-          }
         }
-      }
 
-      $Start += 1
-    }
-
-    # Process images link path
-    $MdLine = $MdLine.Replace("](/.attachments", "](/$AttachmentsDirName")
-
-    # Make absolute links relative
-    $RelativePathPrefix = "../" * $Level
-    $MdLine = $MdLine.Replace("](/", "]($RelativePathPrefix")
-
-    # change h1 to h2, h2 to h3, and so on
-    if ($MdLine.StartsWith("#"))
-    {
-      $MdLine = "#" + $MdLine 
-    }
-
-    # change images with a specified width so DocFX understands them
-    if ($MdLine.Contains("!["))
-    {
-      $RegexImageMatch = [regex]::Match($MdLine, "!\[.*\]\((.+) =([0-9]+)x([0-9]*)\)")
-
-      if ($RegexImageMatch.Success)
-      {
-        $MdLineBefore = $MdLine.Substring(0, $RegexImageMatch.Index)
-        $MdLineAfter = $MdLine.Substring($RegexImageMatch.Index + $RegexImageMatch.Length)
-
-        $MdLine = $MdLineBefore
-        $MdLine += "<img src=""" + $RegexImageMatch.Groups[1] + """"
-        $MdLine += " width=""" + $RegexImageMatch.Groups[2] + """"
-        if ($RegexImageMatch.Groups[3].Length -gt 0) {
-          $MdLine += " height=""" + $RegexImageMatch.Groups[3] + """"
+        # Append the line to the StringBuilder if it's meant to be written
+        if ($WriteLine) {
+            $contentBuilder.AppendLine($MdLine)
+            $ContentWritten = $true
+            $FirstLineWritten = $true
         }
-        $MdLine += " />"
-        $MdLine += $MdLineAfter
-      }
-    }
 
-    # here follow checks if the line should be written
-    $WriteLine = $true
-
-    # Don't write empty lines at the start of the file or if it was requested
-    if ($MdLine.Length -lt 1) {
-      if ($DoNotWriteLineIfItsEmpty -eq $true -or $FirstLineWritten -eq $false) {
-        $WriteLine = $false
-      }
-    }
-
-    if ($Silent) {
-      $WriteLine = $false
-    }
-
-    # If a TargetAudience is specified, but the content has no audience specified, do not print it
-    if ($TargetAudience.Length -gt 0) {
-      if (-not $AudiencePassedOnFirstLine) {
-        $WriteLine = $false
-        $FirstLineWritten = $true # We set this to true because a line would have been written
-        # if it was not skipped because of the audience
-      }
-    }
-
-    # Write to destination file
-    if ($WriteLine) {
-      # Check if destination dir
-      if ($DestinationDirExists -ne $true) {
-        if ((Test-Path -Path $DestinationDir) -ne $true) {
-          New-Item -ItemType "directory" -Path $DestinationDir | Out-Null # silent
+        if ($SilenceAfterNextLine -eq $true) {
+            $Silent = $true
+            $SilenceAfterNextLine = $false
         }
-        $DestinationDirExists = $true
-      }
-
-      # if this is the first line, add the title first
-      if (-not $FirstLineWritten) {
-        if ($null -ne $PageTitle) {
-          if ($PageTitle.Length -gt 0) {
-            Add-Content -Path $Destination -Value "# $PageTitle"
-            Add-Content -Path $Destination -Value ""
-          }
-        }
-      }
-
-      # Write the line
-      Add-Content -Path $Destination -Value $MdLine
-      $ContentWritten = $true
-      $FirstLineWritten = $true
     }
 
-    if ($SilenceAfterNextLine -eq $true) {
-      $Silent = $true
-      $SilenceAfterNextLine = $false
-    }
-  }
+    # Write the content accumulated in the StringBuilder to the destination file
+	if ($ContentWritten) {
+		# Create the destination directory if it doesn't exist
+		if (-not (Test-Path -Path $DestinationDir)) {
+			New-Item -ItemType "directory" -Path $DestinationDir | Out-Null
+		}
 
-  return $ContentWritten
+		$contentBuilder.ToString() | Out-File -FilePath $Destination -Encoding UTF8
+	}
+	return $ContentWritten
 }
+
+
 
 # Main function of the script
 function Copy-DevOpsWikiToDocFx {
@@ -536,9 +537,17 @@ function Copy-DevOpsWikiToDocFx {
   if ($TocContents.Length -gt 0) {
     Set-Content -Path (Join-Path $OutputDir $DocFxTocFilename) -Value $TocContents
   }
+  $AttachmentsSourcePath = Join-Path $InputDir ".attachments"
+  $AttachmentsDestinationPath = Join-Path $OutputDir $AttachmentsDirName
+  if (Test-Path -Path $AttachmentsSourcePath -PathType Container) {
+	  Copy-Item -Path $AttachmentsSourcePath -Destination $AttachmentsDestinationPath -Recurse
+	  } else {
+		  Write-Host "No .attachments folder found. Skipping attachment copy."
+		  }
 
   # Copy attachments dir
-  Copy-Item -Path (Join-Path $InputDir ".attachments") -Destination (Join-Path $OutputDir $AttachmentsDirName) -Recurse
+  
+ # Copy-Item -Path (Join-Path $InputDir ".attachments") -Destination (Join-Path $OutputDir $AttachmentsDirName) -Recurse
 
   # Copy template dir
   $DocFxTemplateDirName = "docfx_template"
