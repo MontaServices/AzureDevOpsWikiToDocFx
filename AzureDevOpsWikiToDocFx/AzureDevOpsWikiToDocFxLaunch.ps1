@@ -3,7 +3,9 @@ param (
     $OutputDir,
     $TemplateDir,
     $TargetAudience,
-    $AudienceKeywords
+    $AudienceKeywords,
+    $ReplaceOutput, 
+    $RepoUrlWithPat
 )
 
 $AudienceKeywordsParsed = @()
@@ -16,4 +18,4 @@ foreach ($AudienceKeywordSplit in $AudienceKeywordsSplitted) {
 $IncludePath = Join-Path $PSScriptRoot "AzureDevOpsWikiToDocFxInclude.ps1"
 . $IncludePath
 
-Copy-DevOpsWikiToDocFx -InputDir $InputDir -OutputDir $OutputDir -TemplateDir $TemplateDir -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywordsParsed 
+Copy-DevOpsWikiToDocFx -InputDir $InputDir -OutputDir $OutputDir -TemplateDir $TemplateDir -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywordsParsed -ReplaceOutput $ReplaceOutput -RepoUrlWithPat $RepoUrlWithPat
