@@ -1,0 +1,87 @@
+name: Build and Publish Extension
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_publish_extension:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Get Current Version
+        id: get_version
+        run: echo "::set-output name=version::$(jq -r '.version' package.json)"
+
+      - name: Increment Version and Update package.json 
+        run: |
+          current_version="${{ steps.get_version.outputs.version }}"
+          incremented_version=$(awk -F. -v OFS=. '{++$3; print}' <<< "$current_version")
+      
+          jq --arg incremented_version "$incremented_version" '.version = $incremented_version' package.json > package.json-modified.json
+          mv package.json-modified.json package.json
+      
+          cat package.json
+      
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git config user.name "${{ github.actor }}"
+          git add package.json
+          git commit -m "Increment version to $incremented_version"
+      
+          git push origin main
+      
+          echo "::set-output name=version::$incremented_version"
+          
+      - name: Increment Version and Update vss-extension.json
+        run: |
+          current_version="${{ steps.get_version.outputs.version }}"
+          incremented_version=$(awk -F. -v OFS=. '{++$3; print}' <<< "$current_version")
+      
+          jq --arg incremented_version "$incremented_version" '.version = $incremented_version' vss-extension.json> vss-extension.json-modified.json
+          mv vss-extension.json-modified.json vss-extension.json
+      
+          cat vss-extension.json
+      
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git config user.name "${{ github.actor }}"
+          git add vss-extension.json
+          git commit -m "Increment version to $incremented_version"
+      
+          git push origin main
+      
+          echo "::set-output name=version::$incremented_version"
+
+
+
+      - name: Install jq
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '14'
+
+      - name: Install tfx-cli
+        run: |
+          npm install -g tfx-cli
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --global user.name "${{ github.actor }}"
+          
+      - name: Build Extension
+        run: |
+          tfx extension create --manifest-globs vss-extension.json
+          
+      - name: Publish to Marketplace
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+        run: |
+          tfx extension publish --token $VSCE_TOKEN
+          jq --arg incremented_version "$incremented_version" '.version = $incremented_version' vss-extension.json > vss-extension.json-modified.json
+          mv vss-extension.json-modified.json vss-extension.json
+          cat vss-extension.json
