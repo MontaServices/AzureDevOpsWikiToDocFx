@@ -607,9 +607,13 @@ function Copy-DevOpsWikiToDocFx {
   }
 "@
 
-  Set-Content -Path (Join-Path $OutputDir $DocFxJsonFilename) -Value $DocFxJson 
-   if ($RepoUrlWithPat -ne $null -and $RepoUrlWithPat -ne "") {
+  Set-Content -Path (Join-Path $OutputDir $DocFxJsonFilename) -Value $DocFxJson
+   if ($env:RepoUrlWithPat ) {
     Process-Repository -repoUrlWithPat $env:RepoUrlWithPat
+	}
+	else
+	{
+		Write-Host "No RepoUrlWithPat key was found, skipping this step"
 	}
 
   
