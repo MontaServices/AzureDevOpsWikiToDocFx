@@ -201,6 +201,8 @@ function Copy-MarkdownFile {
         return $false
     }
 
+    #$OrderFileLines = Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name)
+    #$OrderFileLinesCount = $OrderFileLines.Count
 
     $contentBuilder = [System.Text.StringBuilder]::new()
 
@@ -209,11 +211,10 @@ function Copy-MarkdownFile {
         $SilenceAfterNextLine = $false;
         $DoNotWriteLineIfItsEmpty = $false
 
-    # Loop trough each position in the string to process markers
+        # Loop through each position in the string to process markers
         $Start = 0
         while ($Start -lt $MdLine.Length) {
-           # Check for each marker if its found on this position
-
+            # Check for each marker if it's found on this position
             foreach ($Marker in $AllMarkers) {
                 if ($MdLine.Length -ge ($Start + ($Marker.Length)) -and $MdLine.Substring($Start, $Marker.Length) -eq $Marker) {
                     # A marker is found
@@ -244,7 +245,7 @@ function Copy-MarkdownFile {
                                     $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ", $RestOfLineSpaceIndex + 1)
                                 }
 
-                                # For if there is no content after the audience at all, but the endmarker immediately
+                                # For if there is no content after the audience at all, but the end marker immediately
                                 $RestOfLineEndMarkerIndex = $PartAfterAudienceTrimmed.IndexOf($SpecialsEndMarker)
                                 if ($RestOfLineEndMarkerIndex -gt -1 -and ($RestOfLineEndMarkerIndex -lt $RestOfLineSpaceIndex -or $RestOfLineSpaceIndex -lt 0)) {
                                     $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineEndMarkerIndex)
@@ -262,8 +263,7 @@ function Copy-MarkdownFile {
                                 # check audience
                                 $SilenceByAudience = Get-SilenceByAudience -AudienceSpecified $AudienceSpecified -TargetAudience $TargetAudience
 
-                                # If audience is valid, and we were on the start of the file, set variable
-
+                                # If audience is valid, and we were on the start of the file, set the variable
                                 if (-not $FirstLineWritten -and -not $SilenceByAudience) {
                                     $AudiencePassedOnFirstLine = $true
                                 }
@@ -271,7 +271,7 @@ function Copy-MarkdownFile {
                                 # Check if the end marker is on this line
                                 $EndMarkerPos = $PartAfterAudienceKeyword.IndexOf($SpecialsEndMarker)
 
-                                # If the and marker is on this line, skip or retain part between markers
+                                # If the end marker is on this line, skip or retain part between markers
                                 # Except if we are on the same line, then it counts for the whole file so we skip the end marker
                                 if ($EndMarkerPos -gt -1 -and $FirstLineWritten) {
                                     $MdLine = $PartBeforeMarker
@@ -309,14 +309,13 @@ function Copy-MarkdownFile {
                         if ($SpecialsStartMarkersStartedWithSilencedByAudience.Count -gt 0) {
                             $SpecialsStartMarkersStartedWithSilencedByAudience.Pop() | Out-Null
 
-                            if ($Silent -eq $true) 
-                            {
+                            if ($Silent -eq $true) {
                                 $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length).TrimStart()
                                 $MdLine = $PartAfterMarker
 
-                                # Check if we are still in a marker which is silenced
+                                # Check if we are still in a marker that is silenced
                                 $AreWeStillSilenced = $false
-                                foreach($SilencedByMarker in $SpecialsStartMarkersStartedWithSilencedByAudience) {
+                                foreach ($SilencedByMarker in $SpecialsStartMarkersStartedWithSilencedByAudience) {
                                     if ($SilencedByMarker -eq $true) {
                                         $AreWeStillSilenced = $true
                                         break
@@ -385,18 +384,15 @@ function Copy-MarkdownFile {
         $MdLine = $MdLine.Replace("](/", "]($RelativePathPrefix")
 
         # change h1 to h2, h2 to h3, and so on
-        if ($MdLine.StartsWith("#")) 
-        {
+        if ($MdLine.StartsWith("#")) {
             $MdLine = "#" + $MdLine
         }
 
         # change images with a specified width so DocFX understands them
-        if ($MdLine.Contains("![")) 
-        {
+        if ($MdLine.Contains("![")) {
             $RegexImageMatch = [regex]::Match($MdLine, "!\[.*\]\((.+) =([0-9]+)x([0-9]*)\)")
 
-            if ($RegexImageMatch.Success)
-            {
+            if ($RegexImageMatch.Success) {
                 $MdLineBefore = $MdLine.Substring(0, $RegexImageMatch.Index)
                 $MdLineAfter = $MdLine.Substring($RegexImageMatch.Index + $RegexImageMatch.Length)
 
@@ -470,7 +466,7 @@ function Copy-DevOpsWikiToDocFx {
     [string]$TargetAudience,
     [string[]]$AudienceKeywords,
 	[switch[]]$ReplaceOutput,
-	[string]$RepoUrlWithPat
+	[string[]]$RepoUrlWithPat
 
   )
 
@@ -494,10 +490,18 @@ function Copy-DevOpsWikiToDocFx {
 		Remove-Item -Path $OutputDir -Recurse -Force
 	}
 
+
   # Sort audience keywords by longest first
   $AudienceKeywords = $AudienceKeywords | Sort-Object Length -Descending
-
+  if ($env:RepoUrlWithPat ) {
+	  Process-Repository -repoUrlWithPat $env:RepoUrlWithPat
+	  }
+	  else
+	  {
+		  Write-Host "No RepoUrlWithPat key was found, skipping this step"
+		  }
   # Search .order file
+  
 
   $OrderFilesFound = Get-ChildItem -Path $InputDir | Where-Object Name -eq $OrderFileName
   if ($OrderFilesFound.Count -ne 1) {
@@ -570,7 +574,6 @@ function Copy-DevOpsWikiToDocFx {
 
   # create docfx.json
   $TemplateDirJson = ConvertTo-Json $DocFxTemplateDirName
-
   $DocFxJson = @"
 {
     "build": {
@@ -606,24 +609,14 @@ function Copy-DevOpsWikiToDocFx {
     }
   }
 "@
-
   Set-Content -Path (Join-Path $OutputDir $DocFxJsonFilename) -Value $DocFxJson
-   if ($env:RepoUrlWithPat ) {
-    Process-Repository -repoUrlWithPat $env:RepoUrlWithPat
-	}
-	else
-	{
-		Write-Host "No RepoUrlWithPat key was found, skipping this step"
-	}
-
-  
-
 }
 
 function Process-Repository {
     param (
         [string]$RepoUrlWithPat
     )
+	$newWorkingDirectory = New-Item -ItemType Directory -Force -Path (Join-Path $env:TEMP (Get-Random))
 
     Write-Host "Setting credentials"
     git config --global user.email "*"
@@ -631,9 +624,9 @@ function Process-Repository {
 
     Write-Host "Repository URL with PAT: $RepoUrlWithPat"
 
-    git clone $RepoUrlWithPat $env:System_DefaultWorkingDirectory
+	git clone $RepoUrlWithPat $newWorkingDirectory
 
-    Set-Location -Path $env:System_DefaultWorkingDirectory
+    Set-Location -Path $newWorkingDirectory
 
     function Log-FindAndModify-MdFiles() {
 
@@ -664,6 +657,24 @@ function Process-Repository {
         git add .
         git commit -m "Success!"
     }
+	
+	function Compare-And-Replace-MdFiles {
+        $oldMdFiles = Get-ChildItem -Path $env:System_DefaultWorkingDirectory -Filter *.md -File -Recurse
+        $newMdFiles = Get-ChildItem -Path $newWorkingDirectory -Filter *.md -File -Recurse
 
-    Log-FindAndModify-MdFiles
+        foreach ($oldMdFile in $oldMdFiles) {
+            $matchingNewFile = $newMdFiles | Where-Object { $_.Name -eq $oldMdFile.Name }
+
+            if ($matchingNewFile -ne $null) {
+
+                if ((Get-Content $oldMdFile.FullName) -ne (Get-Content $matchingNewFile.FullName)) {
+                    Write-Host "Updating $($oldMdFile.FullName)"
+                    Copy-Item -Path $matchingNewFile.FullName -Destination $oldMdFile.FullName -Force
+                }
+            }
+        }
+    }
+	Log-FindAndModify-MdFiles
+	Compare-And-Replace-MdFiles
+	$InputDir = $env:System_DefaultWorkingDirectory
 }
