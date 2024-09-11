@@ -31,7 +31,7 @@ try {
     Write-VstsTaskVerbose "Template directory: $TemplateDir"
 
     # Run the script
-    $Script = "AzureDevOpsWikiToDoxFx.ps1"
+    $Script = "AzureDevOpsWikiToDocFx.ps1"
     Write-VstsTaskVerbose "Invoking $Script"
     $ScriptPath = Join-Path $PSScriptRoot $Script
     & "$ScriptPath" -InputDir $SourceFolder -OutputDir $TargetFolder -TemplateDir $TemplateDir
