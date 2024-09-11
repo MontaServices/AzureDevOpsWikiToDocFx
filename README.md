@@ -6,3 +6,5 @@ Please see [overview.md](overview.md).
 
 Run .\AzureDevOpsWikiToDoxFx\AzureDevOpsWikiToDocFx.ps1 -InputDir $AzureDevOpsWikiFolder -OutputDir $TargetFolder -TemplateDir $TemplateDir
 
+TargetFolder must not exist yet.
+

@@ -15,6 +15,10 @@
 
 param($InputDir, $OutputDir, $TemplateDir)
 
+# config
+
+$ErrorActionPreference = "Stop"
+
 # Constants
 
 $OrderFileName = ".order"
@@ -61,10 +65,13 @@ function Copy-Tree {
   }
   
   # Register files from the .order file in the TOC file and copy .md file to the right location
-  $InputDirCurrent = Join-Path $InputDir $BaseDirectory
+  $InputDirCurrentRel = $BaseDirectory
   foreach($TocSubDirectory in $TocSubdirectories) {
-    $InputDirCurrent = Join-Path $InputDirCurrent $TocSubDirectory
+    $InputDirCurrentRel = Join-Path $InputDirCurrentRel $TocSubDirectory
   }
+  Write-Host "Processing directory: $InputDirCurrentRel"
+
+  $InputDirCurrent = Join-Path $InputDir $InputDirCurrentRel
   
   $SubDirectoryOrderFile = Get-ChildItem -Path $InputDirCurrent | Where-Object Name -eq $OrderFileName
   if ($SubDirectoryOrderFile.Count -gt 0) {
@@ -91,29 +98,30 @@ function Copy-Tree {
         $TocFileString.Value += "$Indent  topicHref: $($TocPathItems -join "/")/`n"
         
         # Create directory and copy md file
-        $SubdirectoryOrderLineFileName = "$SubdirectoryOrderFileLine$MarkdownExtension"
-
-        $NewDir = Join-Path $OutputDir $BaseDirectory
+        $SubdirectoryOrderLineFileName = "$SubdirectoryOrderFileLine$MarkdownExtension"        
+        
+        $NewDir = $BaseDirectory
         foreach($TocSubDirectory in $TocSubdirectories) {
           $NewDir = Join-Path $NewDir $TocSubDirectory
         }
         $NewDir = Join-Path $NewDir $SubdirectoryOrderFileLine
-        New-Item -ItemType "directory" -Path $NewDir | Out-Null # silent
 
         $CopyItemDestination = Join-Path $NewDir "index.md"
-        $CopyItemPath = Join-Path $InputDir $BaseDirectory
+        $CopyItemPath = $BaseDirectory
         foreach($TocSubDirectory in $TocSubdirectories) {
           $CopyItemPath = Join-Path $CopyItemPath $TocSubDirectory
         }
         $CopyItemPath = Join-Path $CopyItemPath $SubdirectoryOrderLineFileName
-        Copy-MarkdownFile -Path $CopyItemPath -Destination $CopyItemDestination -Level ($TocSubdirectories.Count + 2)
+        $ContentWritten = Copy-MarkdownFile -RelPath $CopyItemPath -RelDestination $CopyItemDestination -Level ($TocSubdirectories.Count + 2)
 
         # Check for subdirectory with the same name for subpages
-        $SubSubDirectory = Join-Path $InputDirCurrent $SubdirectoryOrderFileLine
-        if (Test-Path -Path $SubSubDirectory -PathType "Container") {
-          $NewTocSubdirectories = $TocSubdirectories.Clone()
-          $NewTocSubdirectories += $SubdirectoryOrderFileLine
-          Copy-Tree -BaseDirectory $BaseDirectory -TocFileString ([ref]$SubTocContents) -TocSubdirectories $NewTocSubdirectories
+        if ($ContentWritten) {
+          $SubSubDirectory = Join-Path $InputDirCurrent $SubdirectoryOrderFileLine
+          if (Test-Path -Path $SubSubDirectory -PathType "Container") {
+            $NewTocSubdirectories = $TocSubdirectories.Clone()
+            $NewTocSubdirectories += $SubdirectoryOrderFileLine
+            Copy-Tree -BaseDirectory $BaseDirectory -TocFileString ([ref]$SubTocContents) -TocSubdirectories $NewTocSubdirectories
+          }
         }
       }
     }
@@ -123,14 +131,20 @@ function Copy-Tree {
 # Function to copy an Azure Devops wiki file to a DocFX file
 function Copy-MarkdownFile {
   param (
-    [string]$Path,
-    [string]$Destination,
+    [string]$RelPath,
+    [string]$RelDestination,
     [int]$Level
   )
+
+  Write-Host "Processing page '$RelPath' to '$RelDestination'"
+
+  $Path = Join-Path $InputDir $RelPath
+  $Destination = Join-Path $OutputDir $RelDestination
 
   $ThreeDotsStarted = 0;
   $Silent = $false
   $ContentWritten = $false
+  $DirCreated = $false
   foreach($MdLine in Get-Content -Path $Path) {
     # Process ::: marker for mermaid and private (content to hide)
     if ($MdLine.TrimStart().StartsWith($SpecialsMarker))
@@ -151,6 +165,15 @@ function Copy-MarkdownFile {
       }
     }
 
+    # Find attachments
+    $AttachmentsMatches = $MdLine | Select-String -Pattern "\]\(/(\.attachments)/(.*)\)" -AllMatches
+    foreach ($AttachmentMatch in $AttachmentsMatches.Matches) {
+      Write-Host "Matched:" $AttachmentMatch.Value
+      foreach ($AttachmentMatchGroup in $AttachmentMatch.Groups) {
+        Write-Host "Match group:" $AttachmentMatchGroup.Value
+      }
+    }
+
     # Process images link path
     $MdLine = $MdLine.Replace("](/.attachments", "](/$AttachmentsDirName")
 
@@ -160,6 +183,14 @@ function Copy-MarkdownFile {
 
     # Write to destination file
     if ($Silent -eq $false) {
+      if (-not $DirCreated) {
+        $DestDir = Split-Path $Destination
+        if (-not (Test-Path $DestDir)) {
+          New-Item -Path $DestDir -ItemType "directory"
+        }
+        $DirCreated = $true
+      }
+
       Add-Content -Path $Destination -Value $MdLine
       $ContentWritten = $true
     }
@@ -168,9 +199,7 @@ function Copy-MarkdownFile {
     }
   }
 
-  if ($ContentWritten -eq $false) {
-    Add-Content -Path $Destination -Value "" # Otherwise no file will be created
-  }
+  return $ContentWritten
 }
 
 # Search .order file
@@ -188,9 +217,8 @@ if ($OrderFileLines.Count -lt 1) {
   Throw "$OrderFileName file in Input directory is empty"
 }
 
-New-Item -ItemType "directory" -Path $OutputDir | Out-Null # create output dir (silent, output to null)
-
-Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0
+$HomepageMdFilePath = "$($OrderFileLines[0])$MarkdownExtension"
+Copy-MarkdownFile -RelPath $HomepageMdFilePath -RelDestination $DocFxHomepageFilename -Level 0 | Out-Null
 
 # Create TOC file and for the rest of the files in the .order file and copy files to the right directory
 $TocContents = ""
@@ -200,23 +228,26 @@ foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
   $TocContents += "  href: $OrderFileLine/`n"
   $TocContents += "  topicHref: $OrderFileLine/`n"
 
-  # subdirectory    
-  New-Item -ItemType "directory" -Path (Join-Path $OutputDir $OrderFileLine) | Out-Null # silent
-
   # Toc file in subdirectory
   $SubTocContents = ""
 
   # Markdown file in subdirectory
-  Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -Destination (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxSectionIntroductionFilename) -Level 1
+  $FirstLevelPageMdFilePath = "$OrderFileLine$MarkdownExtension"
+  $FirstLevelPageDestPath = Join-Path $OrderFileLine $DocFxSectionIntroductionFilename
+  $FirstLevelPageWritten = Copy-MarkdownFile -RelPath $FirstLevelPageMdFilePath -RelDestination $FirstLevelPageDestPath -Level 1
 
   # If a directory exists with the name, then it has subitems
-  $SubDirectory = Join-Path $InputDir $OrderFileLine
-  if (Test-Path -Path $SubDirectory -PathType "Container") {
-    Copy-Tree -BaseDirectory $OrderFileLine -TocFileString ([ref]$SubTocContents)
+  if ($FirstLevelPageWritten) {
+    $SubDirectory = Join-Path $InputDir $OrderFileLine
+    if (Test-Path -Path $SubDirectory -PathType "Container") {
+      Copy-Tree -BaseDirectory $OrderFileLine -TocFileString ([ref]$SubTocContents)
+    }
+    
+    # Write section TOC file
+    if ($SubTocContents) {
+      Set-Content -Path (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxTocFilename) -Value $SubTocContents
+    }
   }
-  
-  # Write section TOC file
-  Set-Content -Path (Join-Path (Join-Path $OutputDir $OrderFileLine) $DocFxTocFilename) -Value $SubTocContents
 }
 # TOC file schrijven
 Set-Content -Path (Join-Path $OutputDir $DocFxTocFilename) -Value $TocContents
