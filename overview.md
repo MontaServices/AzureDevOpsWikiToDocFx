@@ -8,6 +8,7 @@ This allows to to create a public documentation website with the nice wiki editi
 - Images
 - Mermaid diagrams
 - Running the website in a subdirectory: all the links are made relative
+- Copies only attachments referenced in markdown files
 
 # Does not support
 

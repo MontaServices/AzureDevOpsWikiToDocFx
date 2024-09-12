@@ -57,7 +57,8 @@ function Copy-Tree {
   param (
     [string]$BaseDirectory,
     [ref]$TocFileString,
-    [string[]]$TocSubdirectories
+    [string[]]$TocSubdirectories,
+    [System.Collections.Generic.List[string]]$AttachmentPaths
   )
 
   if ($null -eq $TocSubdirectories) {
@@ -112,7 +113,7 @@ function Copy-Tree {
           $CopyItemPath = Join-Path $CopyItemPath $TocSubDirectory
         }
         $CopyItemPath = Join-Path $CopyItemPath $SubdirectoryOrderLineFileName
-        $ContentWritten = Copy-MarkdownFile -RelPath $CopyItemPath -RelDestination $CopyItemDestination -Level ($TocSubdirectories.Count + 2)
+        $ContentWritten = Copy-MarkdownFile -RelPath $CopyItemPath -RelDestination $CopyItemDestination -Level ($TocSubdirectories.Count + 2) -AttachmentPaths $AttachmentPaths
 
         # Check for subdirectory with the same name for subpages
         if ($ContentWritten) {
@@ -120,7 +121,7 @@ function Copy-Tree {
           if (Test-Path -Path $SubSubDirectory -PathType "Container") {
             $NewTocSubdirectories = $TocSubdirectories.Clone()
             $NewTocSubdirectories += $SubdirectoryOrderFileLine
-            Copy-Tree -BaseDirectory $BaseDirectory -TocFileString ([ref]$SubTocContents) -TocSubdirectories $NewTocSubdirectories
+            Copy-Tree -BaseDirectory $BaseDirectory -TocFileString ([ref]$SubTocContents) -TocSubdirectories $NewTocSubdirectories -AttachmentPaths $AttachmentPaths
           }
         }
       }
@@ -133,7 +134,8 @@ function Copy-MarkdownFile {
   param (
     [string]$RelPath,
     [string]$RelDestination,
-    [int]$Level
+    [int]$Level,
+    [System.Collections.Generic.List[string]]$AttachmentPaths
   )
 
   Write-Host "Processing page '$RelPath' to '$RelDestination'"
@@ -166,16 +168,22 @@ function Copy-MarkdownFile {
     }
 
     # Find attachments
-    $AttachmentsMatches = $MdLine | Select-String -Pattern "\]\(/(\.attachments)/(.*)\)" -AllMatches
+    # Regex uses 'balancing groups' to match balancing parenthesis in the attachment path: https://stackoverflow.com/a/7899205
+    # Allows for image size syntax (IMAGE_URL =WIDTHxHEIGHT): https://learn.microsoft.com/en-us/azure/devops/project/wiki/markdown-guidance?view=azure-devops#images
+    $AttachmentsMatches = $MdLine | Select-String -Pattern "\]\(/(\.attachments)/(((?:[^()]|(?<open>\())|(?<-open>\)))+?)( =.*?)?(?(open)(?!))\)" -AllMatches
+    $Drift = 0
     foreach ($AttachmentMatch in $AttachmentsMatches.Matches) {
-      Write-Host "Matched:" $AttachmentMatch.Value
-      foreach ($AttachmentMatchGroup in $AttachmentMatch.Groups) {
-        Write-Host "Match group:" $AttachmentMatchGroup.Value
-      }
+      # replace group 1 (.attachments)
+      $MdLine = $MdLine.Remove($AttachmentMatch.Groups[1].Index + $Drift, $AttachmentMatch.Groups[1].Length)
+      $MdLine = $MdLine.Insert($AttachmentMatch.Groups[1].Index + $Drift, $AttachmentsDirName)
+      $Drift += $AttachmentsDirName.Length - $AttachmentMatch.Groups[1].Length
+      
+      # group 2 is attachment path
+      $AttachmentPath = $AttachmentMatch.Groups[2].Value
+      $AttachmentPathParts = $AttachmentPath.Split('/') | ForEach-Object { [uri]::UnescapeDataString($_) }
+      $AttachmentPath = [IO.Path]::Combine($AttachmentPathParts)
+      $AttachmentPaths.Add($AttachmentPath)
     }
-
-    # Process images link path
-    $MdLine = $MdLine.Replace("](/.attachments", "](/$AttachmentsDirName")
 
     # Make absolute links relative
     $RelativePathPrefix = "../" * $Level
@@ -217,8 +225,10 @@ if ($OrderFileLines.Count -lt 1) {
   Throw "$OrderFileName file in Input directory is empty"
 }
 
+$AttachmentPaths = [System.Collections.Generic.List[string]]::new()
+
 $HomepageMdFilePath = "$($OrderFileLines[0])$MarkdownExtension"
-Copy-MarkdownFile -RelPath $HomepageMdFilePath -RelDestination $DocFxHomepageFilename -Level 0 | Out-Null
+Copy-MarkdownFile -RelPath $HomepageMdFilePath -RelDestination $DocFxHomepageFilename -Level 0 -AttachmentPaths $AttachmentPaths | Out-Null
 
 # Create TOC file and for the rest of the files in the .order file and copy files to the right directory
 $TocContents = ""
@@ -234,13 +244,13 @@ foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
   # Markdown file in subdirectory
   $FirstLevelPageMdFilePath = "$OrderFileLine$MarkdownExtension"
   $FirstLevelPageDestPath = Join-Path $OrderFileLine $DocFxSectionIntroductionFilename
-  $FirstLevelPageWritten = Copy-MarkdownFile -RelPath $FirstLevelPageMdFilePath -RelDestination $FirstLevelPageDestPath -Level 1
+  $FirstLevelPageWritten = Copy-MarkdownFile -RelPath $FirstLevelPageMdFilePath -RelDestination $FirstLevelPageDestPath -Level 1 -AttachmentPaths $AttachmentPaths
 
   # If a directory exists with the name, then it has subitems
   if ($FirstLevelPageWritten) {
     $SubDirectory = Join-Path $InputDir $OrderFileLine
     if (Test-Path -Path $SubDirectory -PathType "Container") {
-      Copy-Tree -BaseDirectory $OrderFileLine -TocFileString ([ref]$SubTocContents)
+      Copy-Tree -BaseDirectory $OrderFileLine -TocFileString ([ref]$SubTocContents) -AttachmentPaths $AttachmentPaths
     }
     
     # Write section TOC file
@@ -252,8 +262,33 @@ foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
 # TOC file schrijven
 Set-Content -Path (Join-Path $OutputDir $DocFxTocFilename) -Value $TocContents
 
-# Copy attachments dir
-Copy-Item -Path (Join-Path $InputDir ".attachments") -Destination (Join-Path $OutputDir $AttachmentsDirName) -Recurse
+# If attachments found...
+$AttachmentPathsCount = $AttachmentPaths.Count
+if ($AttachmentPathsCount -gt 0) {
+  # Create attachments directory in destination
+  $AttachmentsDestDir = Join-Path $OutputDir $AttachmentsDirName
+  New-Item -Path $AttachmentsDestDir -ItemType "directory" | Out-Null
+
+  # Copy attachment files
+  $AttachmentIncrement = 0
+  foreach ($AttachmentPath in $AttachmentPaths) {
+    $AttachmentIncrement += 1
+    Write-Host "Copying attachment ($AttachmentIncrement/$AttachmentPathsCount): $AttachmentPath" 
+    $AttachmentSourcePath = Join-Path $InputDir (Join-Path ".attachments" $AttachmentPath)
+    $AttachmentDestPath = Join-Path $AttachmentsDestDir $AttachmentPath
+  
+    # If the attachment path has a directory, create if it not exists.
+    $AttachmentPathDir = Split-Path $AttachmentPath
+    if ($AttachmentPathDir) {
+      $AttachmentPathDirFull = Join-Path $OutputDir (Join-Path $AttachmentsDirName $AttachmentPathDir)
+      if (-not (Test-Path $AttachmentPathDirFull)) {
+        New-Item -Path $AttachmentPathDirFull -ItemType "directory" | Out-Null
+      }
+    }
+  
+    Copy-Item -Path $AttachmentSourcePath -Destination $AttachmentDestPath
+  }
+}
 
 # Copy template dir
 $DocFxTemplateDirName = "docfx_template"
