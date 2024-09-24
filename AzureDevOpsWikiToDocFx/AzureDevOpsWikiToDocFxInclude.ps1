@@ -10,14 +10,8 @@ $DocFxHomepageFilename = "index.md"
 $DocFxTocFilename = "toc.yml"
 $DocFxJsonFilename = "docfx.json"
 $DocFxSectionIntroductionFilename = "index.md"
-$SpecialsMarker = ":::" # For Mermaid diagrams
-$MermaidKeyword = "mermaid"
-$SpecialsStartMarker = "[[" # For TOC and audience
-$SpecialsEndMarker = "]]"
-$TocMarker = "[[_TOC_]]"
+$SpecialsMarker = ":::"
 $AttachmentsDirName = "Attachments"
-
-$AllMarkers = @($TocMarker, $SpecialsMarker, $SpecialsStartMarker, $SpecialsEndMarker)
 
 #### Functions 
 
@@ -37,10 +31,13 @@ function Copy-Tree {
   }
 
   # Register files from the .order file in the TOC file and copy .md file to the right location
-  $InputDirCurrent = Join-Path $InputDir $InputBaseDirectory
+  $InputDirRel = $InputBaseDirectory
   foreach($TocSubDirectory in $TocSubdirectories) {
-    $InputDirCurrent = Join-Path $InputDirCurrent $TocSubDirectory
+    $InputDirRel = Join-Path $InputDirRel $TocSubDirectory
   }
+  Write-Host "Processing directory: $InputDirRel"
+
+  $InputDirCurrent = Join-Path $InputDir $InputDirRel
   
   $SubDirectoryOrderFile = Get-ChildItem -Path $InputDirCurrent | Where-Object Name -eq $OrderFileName
   if ($SubDirectoryOrderFile.Count -gt 0) {
@@ -68,13 +65,16 @@ function Copy-Tree {
         $NewDir = Join-Path $NewDir $SubdirectoryOrderFileLineFileName
 
         $CopyItemDestination = Join-Path $NewDir "index.md"
-        $CopyItemPath = Join-Path $InputDir $InputBaseDirectory
+
+        $CopyItemPathRel = $InputBaseDirectory
         foreach($TocSubDirectory in $TocSubdirectories) {
-          $CopyItemPath = Join-Path $CopyItemPath $TocSubDirectory
+          $CopyItemPathRel = Join-Path $CopyItemPathRel $TocSubDirectory
         }
-        $CopyItemPath = Join-Path $CopyItemPath $SubdirectoryOrderLineFileName
+        $CopyItemPathRel = Join-Path $CopyItemPathRel $SubdirectoryOrderLineFileName
+        $CopyItemPath = Join-Path $InputDir $CopyItemPathRel
 
         # write md file
+        Write-Host "Processing page: $CopyItemPathRel"
         $Name = Format-PageName $SubdirectoryOrderFileLine
         $ContentWritten = Copy-MarkdownFile -Path $CopyItemPath -DestinationDir $NewDir -Destination $CopyItemDestination -Level ($TocSubdirectories.Count + 2)  -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords -PageTitle $Name
         
@@ -98,54 +98,6 @@ function Copy-Tree {
           }
         }
       }
-    }
-  }
-}
-
-function Get-SilenceByAudience {
-  param (
-    [string]$AudienceSpecified,
-    [string]$TargetAudience
-  )
-
-  $AudienceSpecified = $AudienceSpecified.Trim()
-
-  if ($null -eq $TargetAudience) {
-    $TargetAudience = ""
-  }
-  else {
-    $TargetAudience = $TargetAudience.Trim()
-  }
-  
-  if ($TargetAudience.Length -le 0) {
-    if ($AudienceSpecified.Length -gt 0) {
-      # No target audience, but audience specified -> silence
-      return $true
-    }
-    else {
-      # No target audience, no audience specified -> no silence
-      return $false
-    }
-  }
-  else {
-    if ($AudienceSpecified.Length -le 0) {
-      # Target audience, but no audience specified -> silence
-      return $true
-    }
-    else {
-      # Target audience, audience specified
-      $AudiencesSpecified = $AudienceSpecified.Split(',')
-      $TargetAudiences = $TargetAudience.Split(',')
-      foreach($AudiencesSpecifiedPart in $AudiencesSpecified) {
-        $AudiencesSpecifiedPart = $AudiencesSpecifiedPart.Trim()
-        foreach($TargetAudiencesPart in $TargetAudiences) {
-          $TargetAudiencesPart = $TargetAudiencesPart.Trim()
-          if ($AudiencesSpecifiedPart -eq $TargetAudiencesPart) {
-            return $false
-          }
-        }
-      }
-      return $true
     }
   }
 }
@@ -182,175 +134,49 @@ function Copy-MarkdownFile {
     [string]$DestinationDir,
     [string]$Destination,
     [int]$Level,
-    [string]$TargetAudience,
-    [string[]]$AudienceKeywords,
     [string]$PageTitle
   )
 
-  $SpecialsMarkerStarted = 0
-  $SpecialsStartMarkersStartedWithSilencedByAudience = New-Object System.Collections.Stack
   $ContentWritten = $false
-  $Silent = $false
+  $SilencedByPrivate = $false
   $FirstLineWritten = $false
   $DestinationDirExists = $false
-  $AudiencePassedOnFirstLine = $false
 
   # Process each line in the file
   foreach($MdLine in Get-Content -Path $Path) {
+    # TODO Remove Azure Devops wiki specials not supported by DocFX
+
+    if ($ThreeDotsStarted -lt 1 -and $SilencedByPrivate) {
+      $SilencedByPrivate = $false
+    }
+
+    $MdLine = $MdLine.Replace("[[_TOC_]]", "")
+    $MdLine = $MdLine.Replace("[[_TOSP_]]", "")
+
     $MdLine = $MdLine.Trim()
-    $SilenceAfterNextLine = $false;
-    $DoNotWriteLineIfItsEmpty = $false
 
-    # Loop trough each position in the string to process markers
-    $Start = 0
-    while ($Start -lt $MdLine.Length) {
-      # Check for each marker if its found on this position
-      foreach($Marker in $AllMarkers) {
-        if ($MdLine.Length -ge ($Start+($Marker.Length)) -and $MdLine.Substring($Start, $Marker.Length) -eq $Marker) {
-          # A marker is found
-
-          if ($Marker -eq $TocMarker) { # [[_TOC_]]
-            # Remove TOC marker from line
-            $PartBeforeMarker = $MdLine.Substring(0, $Start)
-            $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
-            $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
-            $MdLine = $PartBeforeMarker + $PartAfterMarkerTrimmed
-            $DoNotWriteLineIfItsEmpty = $true # Do not write the line if the TOC was the only thing on this line
-          }
-          elseif ($Marker -eq $SpecialsStartMarker) { # [[
-            $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
-            $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
-            # turn "[[ Audience" into ...
-            foreach($AudienceKeyword in $AudienceKeywords) {
-              if ($PartAfterMarkerTrimmed.StartsWith($AudienceKeyword)) {
-                $PartBeforeMarker = $MdLine.Substring(0, $Start)
-                # Get everything after "Audience:" or "Audience " or "Audience : "
-                $PartAfterAudience = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $AudienceKeyword.Length);
-                $PartAfterAudienceTrimmed = $PartAfterAudience.TrimStart().TrimStart(":").TrimStart()
-
-                $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ")
-                
-                # if it ends with a comma, get until the next space
-                while ($RestOfLineSpaceIndex -gt -1 -and $PartAfterAudienceTrimmed[$RestOfLineSpaceIndex-1] -eq ",") {
-                  $RestOfLineSpaceIndex = $PartAfterAudienceTrimmed.IndexOf(" ", $RestOfLineSpaceIndex+1)
-                }
-
-                # For if there is no content after the audience at all, but the endmarker immediately
-                $RestOfLineEndMarkerIndex = $PartAfterAudienceTrimmed.IndexOf($SpecialsEndMarker)
-                if ($RestOfLineEndMarkerIndex -gt -1 -and ($RestOfLineEndMarkerIndex -lt $RestOfLineSpaceIndex -or $RestOfLineSpaceIndex -lt 0)) {
-                  $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineEndMarkerIndex)
-                  $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineEndMarkerIndex) # After the space
-                }
-                elseif ($RestOfLineSpaceIndex -lt 0) {
-                  $AudienceSpecified = $PartAfterAudienceTrimmed
-                  $PartAfterAudienceKeyword = ""
-                }
-                else {
-                  $AudienceSpecified = $PartAfterAudienceTrimmed.Substring(0, $RestOfLineSpaceIndex)
-                  $PartAfterAudienceKeyword = $PartAfterAudienceTrimmed.Substring($RestOfLineSpaceIndex + 1) # After the space
-                }
-
-                # check audience
-                $SilenceByAudience = Get-SilenceByAudience -AudienceSpecified $AudienceSpecified -TargetAudience $TargetAudience
-
-                # If audience is valid, and we were on the start of the file, set variable
-                if (-not $FirstLineWritten -and -not $SilenceByAudience) {
-                  $AudiencePassedOnFirstLine = $true
-                }
-
-                # Check if the end marker is on this line
-                $EndMarkerPos = $PartAfterAudienceKeyword.IndexOf($SpecialsEndMarker)
-
-                # If the and marker is on this line, skip or retain part between markers
-                # Except if we are on the same line, then it counts for the whole file so we skip the end marker
-                if ($EndMarkerPos -gt -1 -and $FirstLineWritten) {
-                  $MdLine = $PartBeforeMarker 
-
-                  # Part between end marker
-                  if (-not $SilenceByAudience) {
-                    $MdLine += $PartAfterAudienceKeyword.Substring(0, $EndMarkerPos)
-                  }
-
-                  # Part after end marker
-                  $MdLine += $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length)
-                }
-                else {
-                  if ($EndMarkerPos -gt -1) {
-                    $PartAfterAudienceKeyword = $PartAfterAudienceKeyword.Substring($EndMarkerPos + $SpecialsEndMarker.Length)
-                  }
-
-                  # The end marker is not on this line
-                  if (-not $SilenceByAudience) {
-                    $MdLine = $PartBeforeMarker + $PartAfterAudienceKeyword
-                  }
-                  else {
-                    $MdLine = $PartBeforeMarker
-                    $SilenceAfterNextLine = $true
-                  }
-                  $SpecialsStartMarkersStartedWithSilencedByAudience.Push($SilenceAfterNextLine)
-                }
-
-                break # if an audience marker is found after the [[, do not search for other markers
-              }
-            }
-          }
-          elseif ($Marker -eq $SpecialsEndMarker) { # ]]
-            # if we are in a start marker [[
-            if ($SpecialsStartMarkersStartedWithSilencedByAudience.Count -gt 0) {
-
-              $SpecialsStartMarkersStartedWithSilencedByAudience.Pop() | Out-Null
-
-              if ($Silent -eq $true)
-              {
-                $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length).TrimStart()
-                $MdLine = $PartAfterMarker
-                
-                # Check if we are still in a marker which is silenced
-                $AreWeStillSilenced = $false
-                foreach($SilencedByMarker in $SpecialsStartMarkersStartedWithSilencedByAudience) {
-                  if ($SilencedByMarker -eq $true) {
-                    $AreWeStillSilenced = $true
-                    break
-                  }
-                }
-  
-                if ($AreWeStillSilenced -eq $false) {
-                  $Silent = $false
-                }
-
-              }
-              else {
-                $PartBeforeMarker = $MdLine.Substring(0, $Start)
-                $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length).TrimStart()
-                $MdLine = $PartBeforeMarker + $PartAfterMarker               
-              }              
-            }
-          }
-          elseif ($Marker -eq $SpecialsMarker) { # :::
-            $PartAfterMarker = $MdLine.Substring($Start + $Marker.Length)
-            $PartAfterMarkerTrimmed = $PartAfterMarker.TrimStart()
-            # turn "::: mermaid" into a div
-            if ($PartAfterMarkerTrimmed.StartsWith($MermaidKeyword)) {
-              $PartBeforeMarker = $MdLine.Substring(0, $Start)
-              $PartAfterMermaid = $MdLine.Substring($Start + $Marker.Length + $PartAfterMarker.Length - $PartAfterMarkerTrimmed.Length + $MermaidKeyword.Length);
-              $PartToInsert = "<div class=`"$MermaidKeyword`">"
-              $MdLine = $PartBeforeMarker + $PartToInsert + $PartAfterMermaid
-              $Start += $PartToInsert.Length
-              $SpecialsMarkerStarted += 1
-            }
-            # turn ":::" into an end div (if a div was started)
-            elseif ($SpecialsMarkerStarted -gt 0) {
-              $PartBeforeMarker = $MdLine.Substring(0, $Start)
-              $PartToInsert = "</div>"
-              $MdLine = $PartBeforeMarker + $PartToInsert + $PartAfterMarker
-              $Start += $PartToInsert.Length
-              $SpecialsMarkerStarted -= 1
-            }
-          }
+    # Process ::: marker for mermaid and private (content to hide)
+    if ($MdLine.StartsWith($SpecialsMarker))
+    {
+      $RestOfLine = $MdLine.Substring(3).Trim();
+      if ($RestOfLine.Length -gt 0) {
+        if ($RestOfLine -eq "private") {
+          $SilencedByPrivate = $true
         }
+        else {
+          $MdLine = "<div class=`"$RestOfLine`">"
+        }
+        $ThreeDotsStarted += 1    
       }
-
-      $Start += 1
+      elseif ($ThreeDotsStarted -gt 0) {
+        if ($SilencedByPrivate) {
+          $MdLine = "" # to not print the dots
+        }
+        else {
+          $MdLine = "</div>"
+        }
+        $ThreeDotsStarted -= 1
+      }
     }
 
     # Process images link path
@@ -392,22 +218,13 @@ function Copy-MarkdownFile {
 
     # Don't write empty lines at the start of the file or if it was requested
     if ($MdLine.Length -lt 1) {
-      if ($DoNotWriteLineIfItsEmpty -eq $true -or $FirstLineWritten -eq $false) {
+      if ($FirstLineWritten -eq $false) {
         $WriteLine = $false
       }
     }
 
-    if ($Silent) {
+    if ($SilencedByPrivate) {
       $WriteLine = $false
-    }
-
-    # If a TargetAudience is specified, but the content has no audience specified, do not print it
-    if ($TargetAudience.Length -gt 0) {
-      if (-not $AudiencePassedOnFirstLine) {
-        $WriteLine = $false
-        $FirstLineWritten = $true # We set this to true because a line would have been written
-        # if it was not skipped because of the audience
-      }
     }
 
     # Write to destination file
@@ -435,11 +252,6 @@ function Copy-MarkdownFile {
       $ContentWritten = $true
       $FirstLineWritten = $true
     }
-
-    if ($SilenceAfterNextLine -eq $true) {
-      $Silent = $true
-      $SilenceAfterNextLine = $false
-    }
   }
 
   return $ContentWritten
@@ -450,9 +262,7 @@ function Copy-DevOpsWikiToDocFx {
   param (
     [string]$InputDir, 
     [string]$OutputDir, 
-    [string]$TemplateDir,
-    [string]$TargetAudience,
-    [string[]]$AudienceKeywords
+    [string]$TemplateDir
   )
 
   # Check parameters
@@ -477,18 +287,13 @@ function Copy-DevOpsWikiToDocFx {
     throw "TemplateDir does not exist"
   }
 
-  # Sort audience keywords by longest first
-  $AudienceKeywords = $AudienceKeywords | Sort-Object Length -Descending
-
   # Search .order file
-
   $OrderFilesFound = Get-ChildItem -Path $InputDir | Where-Object Name -eq $OrderFileName
 
   if ($OrderFilesFound.Count -ne 1) {
     Throw "Input directory does not contain a $OrderFileName file"
   }
 
-  # Create homepage for first file in de .order file
   $OrderFileLines = Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name)
 
   if ($OrderFileLines.Count -lt 1) {
@@ -497,8 +302,10 @@ function Copy-DevOpsWikiToDocFx {
 
   New-Item -ItemType "directory" -Path $OutputDir | Out-Null # create output dir (silent, output to null)
 
+  # Create homepage for first file in de .order file
+  Write-Host "Processing homepage: ${OrderFileLines[0]}"
   $HomepageTitle = Format-PageName $OrderFileLines[0]
-  Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -DestinationDir $OutputDir -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0 -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords -PageTitle $HomepageTitle
+  Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -DestinationDir $OutputDir -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0 -PageTitle $HomepageTitle > $null
 
   # Create TOC file and for the rest of the files in the .order file and copy files to the right directory
   $TocContents = ""
@@ -511,7 +318,8 @@ function Copy-DevOpsWikiToDocFx {
     $OrderFileLineForDestinationDir = Format-PageFileName $OrderFileLine
     $DestinationDir = Join-Path $OutputDir $OrderFileLineForDestinationDir
     $PageName = Format-PageName $OrderFileLine
-    $ContentWritten = Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -DestinationDir $DestinationDir -Destination (Join-Path $DestinationDir $DocFxSectionIntroductionFilename) -Level 1 -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords -PageTitle $PageName
+    Write-Host "Processing page: $PageName"
+    $ContentWritten = Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -DestinationDir $DestinationDir -Destination (Join-Path $DestinationDir $DocFxSectionIntroductionFilename) -Level 1 -PageTitle $PageName
     
     # If file was written
     if ($ContentWritten) {
@@ -523,7 +331,7 @@ function Copy-DevOpsWikiToDocFx {
       # If a directory exists with the name, then it has subpages
       $SubDirectory = Join-Path $InputDir $OrderFileLine
       if (Test-Path -Path $SubDirectory -PathType "Container") {
-        Copy-Tree -InputBaseDirectory $OrderFileLine -OutputBaseDirectory $OrderFileLineForDestinationDir -TocFileString ([ref]$SubTocContents) -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywords
+        Copy-Tree -InputBaseDirectory $OrderFileLine -OutputBaseDirectory $OrderFileLineForDestinationDir -TocFileString ([ref]$SubTocContents)
       }
     }
     

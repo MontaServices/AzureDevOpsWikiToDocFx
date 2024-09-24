@@ -8,6 +8,7 @@ This allows to to create a public documentation website with the nice wiki editi
 - Images
 - Mermaid diagrams
 - Running the website in a subdirectory: all the links are made relative
+- Copies only referenced attachments
 
 # Does not support
 
@@ -19,31 +20,19 @@ This project contains a modified version of the default DocFX template to get ev
 
 To use your own docfx template, copy the template files in this repository to adirectory named ".docfx_template" in your wiki repository. Then modify the template to your needs. 
 
-# Targeting differerent audiences
+# Hiding content
 
-A page or part a page can be made visible for certain audiences only.
-
-In the task configuration you can specify one or more 'target audiences'.
-
-To include a page only for Customers for example, specify "Customers" as target audience and put this line on top of the file.
+To hide content, surround it with "::: private" and ":::" (on their own line). E.g.:
 
 ```
-[[Audience: Customers]]
+Content publicly visible in the DocFX website.
+
+::: private
+This will not be visible in the DocFX website.
+::: 
+
+This will be visible again. 
 ```
-
-To hide part of a page use:
-
-```
-[[Audience: Customers
-
-This line is only included when Customers is specified as target audience.
-
-]]
-```
-
-Including content for multiple audiences is also possible. E.g.: `[[Audience: Customers,Staff]]`
-
-If a target audience is specified in the task configuration, and a page has no audience specified on top, the file will not be included.
 
 # Usage
 
