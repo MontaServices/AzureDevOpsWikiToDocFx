@@ -22,7 +22,7 @@ To use your own docfx template, copy the template files in this repository to a 
 
 # Hiding content
 
-To hide content, surround it with "::: private" and ":::" (on their own line). E.g.:
+To hide content, surround it with `::: private` and `:::` (on their own line). E.g.:
 
 ```
 Content publicly visible in the DocFX website.
@@ -33,6 +33,8 @@ This will not be visible in the DocFX website.
 
 This will be visible again. 
 ```
+
+If you put `::: private` at the start of the page and do not close it, the whole file will be ignored. 
 
 # Usage
 
