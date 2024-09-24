@@ -45,7 +45,7 @@ function Copy-Tree {
     }
 
     # Get lines in .order file
-    $SubdirectoryOrderFileLines = Get-Content -Path $SubDirectoryOrderFile.FullName
+    $SubdirectoryOrderFileLines = @(Get-Content -Path $SubDirectoryOrderFile.FullName)
     if ($SubdirectoryOrderFileLines.Count -gt 0) {
 
       if ($TocSubdirectories.Count -gt 0) {
@@ -143,7 +143,7 @@ function Copy-MarkdownFile {
   $DestinationDirExists = $false
 
   # Process each line in the file
-  foreach($MdLine in Get-Content -Path $Path) {
+  foreach($MdLine in @(Get-Content -Path $Path)) {
     if ($ThreeDotsStarted -lt 1 -and $SilencedByPrivate) {
       $SilencedByPrivate = $false
     }
@@ -321,7 +321,7 @@ function Copy-DevOpsWikiToDocFx {
     Throw "Input directory does not contain a $OrderFileName file"
   }
 
-  $OrderFileLines = Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name)
+  $OrderFileLines = @(Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name))
 
   if ($OrderFileLines.Count -lt 1) {
     Throw "$OrderFileName file in Input directory is empty"
@@ -332,8 +332,8 @@ function Copy-DevOpsWikiToDocFx {
   $AttachmentPaths = [System.Collections.Generic.List[string]]::new()
 
   # Create homepage for first file in de .order file
-  Write-Host "Processing homepage: ${OrderFileLines[0]}"
-  $HomepageTitle = Format-PageName $OrderFileLines[0]
+  Write-Host "Processing homepage:" $OrderFileLines[0]
+  $HomepageTitle = Format-PageName 
   Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -DestinationDir $OutputDir -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0 -PageTitle $HomepageTitle -AttachmentPaths $AttachmentPaths > $null
 
   # Create TOC file and for the rest of the files in the .order file and copy files to the right directory
