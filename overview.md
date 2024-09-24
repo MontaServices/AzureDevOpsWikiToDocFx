@@ -8,6 +8,7 @@ This allows to to create a public documentation website with the nice wiki editi
 - Images
 - Mermaid diagrams
 - Running the website in a subdirectory: all the links are made relative
+- Copies only referenced attachments
 
 # Does not support
 
@@ -17,11 +18,11 @@ This allows to to create a public documentation website with the nice wiki editi
 
 This project contains a modified version of the default DocFX template to get everything to work. 
 
-To use your own docfx template, copy the template files in this repository to adirectory named ".docfx_template" in your wiki repository. Then modify the template to your needs. 
+To use your own docfx template, copy the template files in this repository to a directory named ".docfx_template" in your wiki repository. Then modify the template to your needs. 
 
 # Hiding content
 
-To hide content, surround it with "::: private" and ":::". E.g.:
+To hide content, surround it with `::: private` and `:::` (on their own line). E.g.:
 
 ```
 Content publicly visible in the DocFX website.
@@ -33,7 +34,13 @@ This will not be visible in the DocFX website.
 This will be visible again. 
 ```
 
+If you put `::: private` at the start of the page and do not close it, the whole file will be ignored. 
+
 # Usage
+
+You can use this task in build and release.
+
+## Build 
 
 With a azure-pipelines.yml build file below, an artifact with the website files will be created. 
 This you can release to a webserver.
@@ -59,3 +66,7 @@ steps:
     ArtifactName: 'drop'
     publishLocation: 'Container'
 ```
+
+## Release
+
+Works quite the same as in a build pipeline.

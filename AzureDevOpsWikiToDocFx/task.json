@@ -1,5 +1,5 @@
 {
-  "id": "20a0ad26-6f4d-4966-a8ec-61978feab4c9",
+  "id": "7026d207-862f-446e-bfd9-5d4b896c0851",
   "name": "AzureDevOpsWikiToDocFx",
   "friendlyName": "AzureDevOpsWikiToDocFx",
   "description": "This task creates a DocFX website out of your Azure DevOps wiki repository",
@@ -12,7 +12,7 @@
   "demands": [],
   "version": {
     "Major": "1",
-    "Minor": "1",
+    "Minor": "2",
     "Patch": "0"
   },
   "minimumAgentVersion": "1.95.0",
@@ -33,6 +33,14 @@
       "defaultValue": "",
       "required": true,
       "helpMarkDown": "Where the DocFX project should be written. It should not yet exist."
+    },
+    {
+      "name": "TemplateDir",
+      "type": "String",
+      "label": "Template directory name",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Name of the directory in the source folder containing the DocFX template files. If the directory does not exist, the default template is used. Example: .docfx_template"
     }
   ],
   "execution": {

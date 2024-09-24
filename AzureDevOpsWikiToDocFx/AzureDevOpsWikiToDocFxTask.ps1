@@ -8,33 +8,57 @@ try {
     # Reading inputs
     $SourceFolder = Get-VstsInput -Name SourceFolder -Require
     $TargetFolder = Get-VstsInput -Name TargetFolder -Require
+    $AudienceKeywords = Get-VstsInput -Name AudienceKeywords
+    $TargetAudience = Get-VstsInput -Name TargetAudience
+    $TemplateDirName = Get-VstsInput -Name TemplateDir
 
     # Validating input
     Write-VstsTaskVerbose "Source folder: $SourceFolder"
     Write-VstsTaskVerbose "Target folder: $TargetFolder"
+    Write-VstsTaskVerbose "Target audience: $TargetAudience"
 
+    # Paths
     Assert-VstsPath -LiteralPath $SourceFolder -PathType Container
     
     if (Test-Path -Path $TargetFolder) {
         throw "Target folder already exists"
     }
 
-    # Template dir
-    $SearchTemplateDir = Join-Path $SourceFolder ".docfx_template"
-    if (Test-Path -Path $SearchTemplateDir -PathType "Container") {
-        $TemplateDir = $SearchTemplateDir
+    # Audience
+    $AudienceKeywordsParsed = @()
+    $AudienceKeywordsSplitted = $AudienceKeywords.Split(",")
+    foreach ($AudienceKeywordSplit in $AudienceKeywordsSplitted) {
+        $AudienceKeywordSplit = $AudienceKeywordSplit.Trim()
+        $AudienceKeywordsParsed += $AudienceKeywordSplit
     }
-    else {
-        $TemplateDir = Join-Path $PSScriptRoot "docfx_template"
+    Write-VstsTaskVerbose "Audience keywords: $AudienceKeywordsParsed"
+
+    # Template dir
+    $TemplateDir = Join-Path $PSScriptRoot "docfx_template" # default
+
+    # if a template dir is specified in config, check if it exists and use it
+    if ($null -ne $TemplateDirName) {
+        if ($TemplateDirName.Length -gt 0) {
+            $SearchTemplateDir = Join-Path $SourceFolder $TemplateDirName
+            $TemplateDirFound = Test-Path -Path $SearchTemplateDir -PathType "Container"
+            if ($TemplateDirFound -ne $true)
+            {
+                throw "Template dir does not exist"
+            }
+            $TemplateDir = $SearchTemplateDir
+        }
     }
     
     Write-VstsTaskVerbose "Template directory: $TemplateDir"
 
     # Run the script
-    $Script = "AzureDevOpsWikiToDoxFx.ps1"
-    Write-VstsTaskVerbose "Invoking $Script"
+    $Script = "AzureDevOpsWikiToDocFxInclude.ps1"
+    Write-VstsTaskVerbose "Dot-sourcing $Script"
     $ScriptPath = Join-Path $PSScriptRoot $Script
-    & "$ScriptPath" -InputDir $SourceFolder -OutputDir $TargetFolder -TemplateDir $TemplateDir
+    . $ScriptPath
+
+    Write-VstsTaskVerbose "Starting"
+    Copy-DevOpsWikiToDocFx -InputDir $SourceFolder -OutputDir $TargetFolder -TemplateDir $TemplateDir -TargetAudience $TargetAudience -AudienceKeywords $AudienceKeywordsParsed
 } finally {
     Trace-VstsLeavingInvocation $MyInvocation
 }
