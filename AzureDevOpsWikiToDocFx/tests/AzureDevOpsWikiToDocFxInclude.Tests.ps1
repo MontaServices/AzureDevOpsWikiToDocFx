@@ -3,7 +3,10 @@ Describe "AzureDevOpsWikiToDocFx" {
         $IncludePath = Join-Path $PSScriptRoot (Join-Path ".." "AzureDevOpsWikiToDocFxInclude.ps1")
         . $IncludePath
 
-        # Helper function for testing files
+        <#
+        .SYNOPSIS 
+        Helper function for testing Copy-MarkdownFile function.
+        #>
         function Test-CopyMarkdownFile {
             param(
                 [string]$InputFileContents, 
@@ -104,6 +107,17 @@ Test after
             $ExpectedContentWritten = $true
 
             Test-CopyMarkdownFile $InputFileContents $ExpectedContentWritten $ExpectedOutput
+        }
+
+        It "Format-MdLineAttachments" {
+            $AttachmentPaths = [System.Collections.Generic.List[string]]::new()
+            $InputMdLine = "![image.png](/.attachments/image-6e3f7ceb-a8c4-4d14-b40d-e43f3c3d7df3 (9).png =200x)![image.png](/.attachments/image/te%20st/image-d349ef4a-da92-403a-a191-a6b82d653b76.png)"
+            $ExpectedOutputMdLine = "<img src=`"../../Attachments/image-6e3f7ceb-a8c4-4d14-b40d-e43f3c3d7df3 (9).png`" width=`"200`" />![image.png](../../Attachments/image/te%20st/image-d349ef4a-da92-403a-a191-a6b82d653b76.png)"
+            $ActualOutputMdLine = Format-MdLineAttachments -MdLine $InputMdLine -Level 2 -AttachmentPaths $AttachmentPaths
+            $ActualOutputMdLine | Should Be $ExpectedOutputMdLine
+            $AttachmentPaths.Count | Should Be 2
+            $AttachmentPaths[0] | Should Be "image-6e3f7ceb-a8c4-4d14-b40d-e43f3c3d7df3 (9).png"
+            $AttachmentPaths[1] | Should Be "image\te st\image-d349ef4a-da92-403a-a191-a6b82d653b76.png"
         }
     }
 }
