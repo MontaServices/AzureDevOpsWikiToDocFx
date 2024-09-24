@@ -322,24 +322,27 @@ function Copy-DevOpsWikiToDocFx {
   }
 
   $OrderFileLines = @(Get-Content -Path (Join-Path $InputDir $OrderFilesFound[0].Name))
-
   if ($OrderFileLines.Count -lt 1) {
     Throw "$OrderFileName file in Input directory is empty"
   }
 
-  New-Item -ItemType "directory" -Path $OutputDir | Out-Null # create output dir (silent, output to null)
+  New-Item -ItemType "directory" -Path $OutputDir > $null # create output dir (silent, output to null)
 
   $AttachmentPaths = [System.Collections.Generic.List[string]]::new()
 
-  # Create homepage for first file in de .order file
-  Write-Host "Processing homepage:" $OrderFileLines[0]
-  $HomepageTitle = Format-PageName 
-  Copy-MarkdownFile -Path (Join-Path $InputDir "$($OrderFileLines[0])$MarkdownExtension") -DestinationDir $OutputDir -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0 -PageTitle $HomepageTitle -AttachmentPaths $AttachmentPaths > $null
-
-  # Create TOC file and for the rest of the files in the .order file and copy files to the right directory
+  # Loop through files in the .order file and copy files to the right place
   $TocContents = ""
-  foreach($OrderFileLine in ($OrderFileLines | Select-Object -Skip 1))
+  $HomepageWritten = $false
+  foreach($OrderFileLine in $OrderFileLines)
   {
+    # first page is the homepage
+    if ($HomepageWritten -eq $false) {
+      Write-Host "Processing homepage: $OrderFileLine"
+      $HomepageTitle = Format-PageName $OrderFileLine
+      $HomepageWritten = Copy-MarkdownFile -Path (Join-Path $InputDir "$OrderFileLine$MarkdownExtension") -DestinationDir $OutputDir -Destination (Join-Path $OutputDir $DocFxHomepageFilename) -Level 0 -PageTitle $HomepageTitle -AttachmentPaths $AttachmentPaths
+      continue
+    }
+
     # Toc file in subdirectory
     $SubTocContents = ""
 
