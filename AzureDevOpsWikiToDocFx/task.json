@@ -13,7 +13,7 @@
   "version": {
     "Major": "1",
     "Minor": "2",
-    "Patch": "1"
+    "Patch": "2"
   },
   "minimumAgentVersion": "1.95.0",
   "instanceNameFormat": "AzureDevOpsWikiToDocFx $(message)",
@@ -21,7 +21,7 @@
     {
       "name": "SourceFolder",
       "type": "filePath",
-      "label": "Source Folder",
+      "label": "Source folder",
       "defaultValue": "",
       "required": true,
       "helpMarkDown": "Where the Azure DevOps wiki files are located."
@@ -29,7 +29,7 @@
     {
       "name": "TargetFolder",
       "type": "filePath",
-      "label": "Target Folder",
+      "label": "Target folder",
       "defaultValue": "",
       "required": true,
       "helpMarkDown": "Where the DocFX project should be written. It should not yet exist."

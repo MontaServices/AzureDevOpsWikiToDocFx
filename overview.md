@@ -18,7 +18,10 @@ This allows to to create a public documentation website with the nice wiki editi
 
 This project contains a modified version of the default DocFX template to get everything to work. 
 
-To use your own docfx template, copy the template files in this repository to a directory named ".docfx_template" in your wiki repository. Then modify the template to your needs. 
+To use your own docfx template:
+* Copy the template files in this repository to a directory in the source folder. For example ".docfx_template".
+* Modify the template to your needs.
+* Specify the directory name in the 'Template directory name' pipeline task argument.
 
 # Hiding content
 

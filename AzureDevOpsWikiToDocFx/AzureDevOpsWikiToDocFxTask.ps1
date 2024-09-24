@@ -8,14 +8,11 @@ try {
     # Reading inputs
     $SourceFolder = Get-VstsInput -Name SourceFolder -Require
     $TargetFolder = Get-VstsInput -Name TargetFolder -Require
-    $AudienceKeywords = Get-VstsInput -Name AudienceKeywords
-    $TargetAudience = Get-VstsInput -Name TargetAudience
     $TemplateDirName = Get-VstsInput -Name TemplateDir
 
     # Validating input
     Write-VstsTaskVerbose "Source folder: $SourceFolder"
     Write-VstsTaskVerbose "Target folder: $TargetFolder"
-    Write-VstsTaskVerbose "Target audience: $TargetAudience"
 
     # Paths
     Assert-VstsPath -LiteralPath $SourceFolder -PathType Container
@@ -23,15 +20,6 @@ try {
     if (Test-Path -Path $TargetFolder) {
         throw "Target folder already exists"
     }
-
-    # Audience
-    $AudienceKeywordsParsed = @()
-    $AudienceKeywordsSplitted = $AudienceKeywords.Split(",")
-    foreach ($AudienceKeywordSplit in $AudienceKeywordsSplitted) {
-        $AudienceKeywordSplit = $AudienceKeywordSplit.Trim()
-        $AudienceKeywordsParsed += $AudienceKeywordSplit
-    }
-    Write-VstsTaskVerbose "Audience keywords: $AudienceKeywordsParsed"
 
     # Template dir
     $TemplateDir = Join-Path $PSScriptRoot "docfx_template" # default

@@ -77,7 +77,7 @@ function Copy-Tree {
         $Name = Format-PageName $SubdirectoryOrderFileLine
         $ContentWritten = Copy-MarkdownFile -Path $CopyItemPath -DestinationDir $NewDir -Destination $CopyItemDestination -Level ($TocSubdirectories.Count + 2) -PageTitle $Name -AttachmentPaths $AttachmentPaths
         
-        # If the page has been written (due to audience)
+        # If the page has been written (due to private)
         if ($ContentWritten) {
           # Add to TOC
           $Indent = "  " * $TocSubdirectories.Count
