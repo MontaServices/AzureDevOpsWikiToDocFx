@@ -142,6 +142,8 @@ function Copy-MarkdownFile {
   $FirstLineWritten = $false
   $DestinationDirExists = $false
 
+  $NewContent = [System.Text.StringBuilder]::new()
+
   # Process each line in the file
   foreach($MdLine in @(Get-Content -Path $Path)) {
     if ($ThreeDotsStarted -lt 1 -and $SilencedByPrivate) {
@@ -205,7 +207,7 @@ function Copy-MarkdownFile {
       # Check if destination dir
       if ($DestinationDirExists -ne $true) {
         if ((Test-Path -Path $DestinationDir) -ne $true) {
-          New-Item -ItemType "directory" -Path $DestinationDir | Out-Null # silent
+          New-Item -ItemType "directory" -Path $DestinationDir > $null # silent
         }
         $DestinationDirExists = $true
       }
@@ -214,17 +216,21 @@ function Copy-MarkdownFile {
       if (-not $FirstLineWritten) {
         if ($null -ne $PageTitle) {
           if ($PageTitle.Length -gt 0) {
-            Add-Content -Path $Destination -Value "# $PageTitle"
-            Add-Content -Path $Destination -Value ""
+            $NewContent.AppendLine("# $PageTitle")
+            $NewContent.AppendLine("")
           }
         }
       }
 
       # Write the line
-      Add-Content -Path $Destination -Value $MdLine
+      $NewContent.AppendLine($MdLine)
       $ContentWritten = $true
       $FirstLineWritten = $true
     }
+  }
+
+  if ($ContentWritten) {
+    Set-Content -Path $Destination -Value $NewContent.ToString()
   }
 
   return $ContentWritten
