@@ -1,7 +1,7 @@
 param (
     $InputDir,
     $OutputDir,
-    $TemplateDir
+    $DocfxGlobalMetadata
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,4 +9,4 @@ $ErrorActionPreference = "Stop"
 $IncludePath = Join-Path $PSScriptRoot "AzureDevOpsWikiToDocFxInclude.ps1"
 . $IncludePath
 
-Copy-DevOpsWikiToDocFx -InputDir $InputDir -OutputDir $OutputDir -TemplateDir $TemplateDir
+Copy-DevOpsWikiToDocFx -InputDir $InputDir -OutputDir $OutputDir -DocfxGlobalMetadata $DocfxGlobalMetadata

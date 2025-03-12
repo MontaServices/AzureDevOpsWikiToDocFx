@@ -16,12 +16,7 @@ This allows to to create a public documentation website with the nice wiki editi
 
 # Template
 
-This project contains a modified version of the default DocFX template to get everything to work. 
-
-To use your own docfx template:
-* Copy the template files in this repository to a directory in the source folder. For example ".docfx_template".
-* Modify the template to your needs.
-* Specify the directory name in the 'Template directory name' pipeline task argument.
+Use `DocfxGlobalMetadata` task input to set metadata to customizing the appearance of pages. See: https://dotnet.github.io/docfx/docs/template.html?tabs=modern#template-metadata.
 
 # Hiding content
 
@@ -58,16 +53,24 @@ pool:
 steps:
 - task: AzureDevOpsWikiToDocFx@1
   inputs:
-    SourceFolder: '$(System.DefaultWorkingDirectory)'
-    TargetFolder: '$(System.DefaultWorkingDirectory)/docfx'
-- task: DocFxTask@0
+    SourceFolder: '$(System.SourcesDirectory)'
+    TargetFolder: '$(System.ArtifactStagingDirectory)/mydocs'
+    DocfxGlobalMetadata: '{ "_appName": "MyDocs", "_appTitle": "MyDocs", "_enableSearch": true, "_disableNextArticle": true }'
+
+- task: CmdLine@2
+  displayName: Install DocFX
   inputs:
-    solution: 'docfx/docfx.json'
-- task: PublishBuildArtifacts@1
+    script: 'dotnet tool update -g do
+
+- task: CmdLine@2
+  displayName: DocFX build
   inputs:
-    PathtoPublish: '$(System.DefaultWorkingDirectory)/docfx/_site'
-    ArtifactName: 'drop'
-    publishLocation: 'Container'
+    script: 'docfx $(Build.ArtifactStagingDirectory)/mydocs/docfx.json'
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(System.ArtifactStagingDirectory)/docfx/_site'
+    publishLocation: 'pipeline'
 ```
 
 ## Release

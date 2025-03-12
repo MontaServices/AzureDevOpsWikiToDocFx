@@ -294,8 +294,8 @@ function Format-MdLineAttachments {
 function Copy-DevOpsWikiToDocFx {
   param (
     [string]$InputDir, 
-    [string]$OutputDir, 
-    [string]$TemplateDir
+    [string]$OutputDir,
+    [string]$DocfxGlobalMetadata
   )
 
   # Check parameters
@@ -308,16 +308,8 @@ function Copy-DevOpsWikiToDocFx {
     Throw "Parameter OutputDir not provided"
   }
 
-  if ($null -eq $TemplateDir) {
-    Throw "Parameter TemplateDir not provided"
-  }
-
   if (Test-Path -Path $OutputDir) {
     Throw "OutputDir already exists"
-  }
-
-  if ((Test-Path -Path $TemplateDir -PathType "Container") -ne $true) {
-    throw "TemplateDir does not exist"
   }
 
   # Search .order file
@@ -411,47 +403,41 @@ function Copy-DevOpsWikiToDocFx {
     }
   }
 
-  # Copy template dir
-  $DocFxTemplateDirName = "docfx_template"
-  Copy-Item -Path $TemplateDir -Destination (Join-Path $OutputDir $DocFxTemplateDirName) -Recurse
+  # create docfx.json global metadata
+  if (-not $DocfxGlobalMetadata) {
+    $DocfxGlobalMetadata = "{}"
+  }
 
   # create docfx.json
-  $TemplateDirJson = ConvertTo-Json $DocFxTemplateDirName
-
   $DocFxJson = @"
 {
-    "build": {
-      "content": [
-        {
-          "files": [
-            "**.md",
-            "**/toc.yml",
-            "toc.yml",
-            "*.md"
-          ]
-        }
-      ],
-      "resource": [
-        {
-          "files": [
-            "Attachments/**"
-          ]
-        }
-      ],
-      "dest": "_site",
-      "globalMetadataFiles": [],
-      "fileMetadataFiles": [],
-      "template": [
-        ${TemplateDirJson}
-      ],
-      "postProcessors": [ "ExtractSearchIndex" ],
-      "markdownEngineName": "markdig",
-      "noLangKeyword": false,
-      "keepFileLink": false,
-      "cleanupCacheHistory": false,
-      "disableGitFeatures": true
-    }
+  "`$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "build": {
+    "content": [
+      {
+        "files": [
+          "**/*.{md,yml}"
+        ],
+        "exclude": [
+          "_site/**"
+        ]
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "Attachments/**"
+        ]
+      }
+    ],
+    "output": "_site",
+    "template": [
+      "default",
+      "modern"
+    ],
+    "globalMetadata": $DocfxGlobalMetadata
   }
+}
 "@
 
   Set-Content -Path (Join-Path $OutputDir $DocFxJsonFilename) -Value $DocFxJson 

@@ -11,9 +11,9 @@
   ],
   "demands": [],
   "version": {
-    "Major": "1",
-    "Minor": "2",
-    "Patch": "3"
+    "Major": "2",
+    "Minor": "1",
+    "Patch": "1"
   },
   "minimumAgentVersion": "1.95.0",
   "instanceNameFormat": "AzureDevOpsWikiToDocFx $(message)",
@@ -35,12 +35,12 @@
       "helpMarkDown": "Where the DocFX project should be written. It should not yet exist."
     },
     {
-      "name": "TemplateDir",
-      "type": "String",
-      "label": "Template directory name",
+      "name": "DocfxGlobalMetadata",
+      "type": "multiLine",
+      "label": "Docfx global metadata",
       "defaultValue": "",
       "required": false,
-      "helpMarkDown": "Name of the directory in the source folder containing the DocFX template files. If the directory does not exist, the default template is used. Example: .docfx_template"
+      "helpMarkDown": "JSON object with global metadata for docfx.json."
     }
   ],
   "execution": {
