@@ -164,6 +164,11 @@ function Copy-MarkdownFile {
         if ($RestOfLine -eq "private") {
           $SilencedByPrivate = $true
         }
+        # https://dotnet.github.io/docfx/docs/markdown.html#mermaid-diagrams
+        elseif ($RestOfLine -eq "mermaid") { 
+          $MdLine = '```mermaid'
+          $EndWithThreeTicks = $true
+        }
         else {
           $MdLine = "<div class=`"$RestOfLine`">"
         }
@@ -172,6 +177,9 @@ function Copy-MarkdownFile {
       elseif ($ThreeDotsStarted -gt 0) {
         if ($SilencedByPrivate) {
           $MdLine = "" # to not print the dots
+        }
+        elseif ($EndWithThreeTicks) {
+          $MdLine = '```'
         }
         else {
           $MdLine = "</div>"
