@@ -294,8 +294,7 @@ function Format-MdLineAttachments {
 function Copy-DevOpsWikiToDocFx {
   param (
     [string]$InputDir, 
-    [string]$OutputDir,
-    [string]$DocfxGlobalMetadata
+    [string]$OutputDir
   )
 
   # Check parameters
@@ -403,12 +402,8 @@ function Copy-DevOpsWikiToDocFx {
     }
   }
 
-  # create docfx.json global metadata
-  if (-not $DocfxGlobalMetadata) {
-    $DocfxGlobalMetadata = "{}"
-  }
-
   # create docfx.json
+  # please update README when you change this
   $DocFxJson = @"
 {
   "`$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
@@ -434,8 +429,7 @@ function Copy-DevOpsWikiToDocFx {
     "template": [
       "default",
       "modern"
-    ],
-    "globalMetadata": $DocfxGlobalMetadata
+    ]
   }
 }
 "@

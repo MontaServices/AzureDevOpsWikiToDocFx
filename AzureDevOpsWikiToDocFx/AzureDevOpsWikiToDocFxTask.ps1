@@ -8,7 +8,6 @@ try {
     # Reading inputs
     $SourceFolder = Get-VstsInput -Name SourceFolder -Require
     $TargetFolder = Get-VstsInput -Name TargetFolder -Require
-    $DocfxGlobalMetadata = Get-VstsInput -Name DocfxGlobalMetadata
 
     # Validating input
     Write-VstsTaskVerbose "Source folder: $SourceFolder"
@@ -28,7 +27,7 @@ try {
     . $ScriptPath
 
     Write-VstsTaskVerbose "Starting"
-    Copy-DevOpsWikiToDocFx -InputDir $SourceFolder -OutputDir $TargetFolder -DocfxGlobalMetadata $DocfxGlobalMetadata
+    Copy-DevOpsWikiToDocFx -InputDir $SourceFolder -OutputDir $TargetFolder
 } finally {
     Trace-VstsLeavingInvocation $MyInvocation
 }

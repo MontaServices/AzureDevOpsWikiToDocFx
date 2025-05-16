@@ -5,7 +5,7 @@ Please see [overview.md](overview.md).
 # Test
 
 ```
-.AzureDevOpsWikiToDocFx\AzureDevOpsWikiToDocFxLaunch.ps1 -InputDir "{path to directory with checked out Azure DevOps wiki files}" -OutputDir "{directory to create with DocFX project}" -DocfxGlobalMetadata "optional: JSON object with global metadata for docfx.json"
+.AzureDevOpsWikiToDocFx\AzureDevOpsWikiToDocFxLaunch.ps1 -InputDir "{path to directory with checked out Azure DevOps wiki files}" -OutputDir "{directory to create with DocFX project}"
 ```
 
 # Publish 
