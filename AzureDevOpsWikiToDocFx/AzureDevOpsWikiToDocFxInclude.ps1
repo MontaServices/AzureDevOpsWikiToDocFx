@@ -236,7 +236,7 @@ function Copy-MarkdownFile {
       }
 
       # Write the line
-      $NewContent.AppendLine($MdLine)
+      $NewContent.AppendLine($MdLine) > $null
       $ContentWritten = $true
       $FirstLineWritten = $true
     }

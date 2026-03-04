@@ -12,6 +12,8 @@ These instructions were used to setup this project: https://4bes.nl/2021/02/21/c
 .\AzureDevOpsWikiToDocFx\AzureDevOpsWikiToDocFxLaunch.ps1 -InputDir "{path to directory with checked out Azure DevOps wiki files}" -OutputDir "{directory to create with DocFX project}"
 ```
 
+This project also includes [Pester](https://pester.dev/) tests. Run `Invoke-Pester` in this directory to run the tests.
+
 # Publish 
 
 * Raise version in vss-extension.json and AzureDevOpsWikiToDocFx/task.json
