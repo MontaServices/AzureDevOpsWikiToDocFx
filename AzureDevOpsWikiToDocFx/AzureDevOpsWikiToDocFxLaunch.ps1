@@ -1,5 +1,9 @@
 param (
-    $InputDir,
+    [Parameter(Mandatory=$true)]
+    [string]$InputDir,
+
+    [Parameter(Mandatory=$true)]
+    [string]
     $OutputDir
 )
 

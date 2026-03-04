@@ -22,11 +22,16 @@ function Copy-Tree {
     [string]$OutputBaseDirectory,
     [ref]$TocFileString,
     [string[]]$TocSubdirectories,
+    [string[]]$TocSubdirectoriesOutput,
     [System.Collections.Generic.List[string]]$AttachmentPaths
   )
 
   if ($null -eq $TocSubdirectories) {
     $TocSubdirectories = @()
+  }
+
+  if ($null -eq $TocSubdirectoriesOutput) {
+    $TocSubdirectoriesOutput = @()
   }
 
   # Register files from the .order file in the TOC file and copy .md file to the right location
@@ -38,14 +43,14 @@ function Copy-Tree {
 
   $InputDirCurrent = Join-Path $InputDir $InputDirRel
   
-  $SubDirectoryOrderFile = Get-ChildItem -Path $InputDirCurrent | Where-Object Name -eq $OrderFileName
+  $SubDirectoryOrderFile = Get-ChildItem -LiteralPath $InputDirCurrent | Where-Object Name -eq $OrderFileName
   if ($SubDirectoryOrderFile.Count -gt 0) {
     if ($SubDirectoryOrderFile.Count -gt 1) {
       Throw "Multiple $OrderFileName files in directory $OrderFileLine"
     }
 
     # Get lines in .order file
-    $SubdirectoryOrderFileLines = @(Get-Content -Path $SubDirectoryOrderFile.FullName)
+    $SubdirectoryOrderFileLines = @(Get-Content -LiteralPath $SubDirectoryOrderFile.FullName -Encoding 'UTF8')
     if ($SubdirectoryOrderFileLines.Count -gt 0) {
 
       if ($TocSubdirectories.Count -gt 0) {
@@ -57,8 +62,8 @@ function Copy-Tree {
         $SubdirectoryOrderLineFileName = "$SubdirectoryOrderFileLine$MarkdownExtension"
 
         $NewDir = Join-Path $OutputDir $OutputBaseDirectory
-        foreach($TocSubDirectory in $TocSubdirectories) {
-          $NewDir = Join-Path $NewDir $TocSubDirectory
+        foreach($TocSubDirectoryOutput in $TocSubdirectoriesOutput) {
+          $NewDir = Join-Path $NewDir $TocSubDirectoryOutput
         }
         $SubdirectoryOrderFileLineFileName = Format-PageFileName $SubdirectoryOrderFileLine
         $NewDir = Join-Path $NewDir $SubdirectoryOrderFileLineFileName
@@ -82,18 +87,22 @@ function Copy-Tree {
           # Add to TOC
           $Indent = "  " * $TocSubdirectories.Count
           $TocFileString.Value += "$Indent- name: $Name`n"
-          $TocPathItems = $TocSubdirectories.Clone()
-          $TocPathItems += $SubdirectoryOrderFileLine
+          $TocPathItems = $TocSubdirectoriesOutput.Clone()
+          $TocPathItems += $SubdirectoryOrderFileLineFileName
           $TocFileString.Value += "$Indent  href: $($TocPathItems -join "/")/`n"
           $TocFileString.Value += "$Indent  topicHref: $($TocPathItems -join "/")/`n"
 
           # Check for subdirectory with the same name for subpages
-          $SubdirectoryOrderFileLineFormatted = Format-PageFileName $SubdirectoryOrderFileLine
-          $SubSubDirectory = Join-Path $InputDirCurrent $SubdirectoryOrderFileLineFormatted
-          if (Test-Path -Path $SubSubDirectory -PathType "Container") {
+          $SubSubDirectory = Join-Path $InputDirCurrent $SubdirectoryOrderFileLine
+          $SubSubDirectoryExists = Test-Path -LiteralPath $SubSubDirectory -PathType "Container"
+          if ($SubSubDirectoryExists) {
             $NewTocSubdirectories = $TocSubdirectories.Clone()
             $NewTocSubdirectories += $SubdirectoryOrderFileLine
-            Copy-Tree -InputBaseDirectory $InputBaseDirectory -OutputBaseDirectory $OutputBaseDirectory -TocFileString ([ref]$SubTocContents) -TocSubdirectories $NewTocSubdirectories -AttachmentPaths $AttachmentPaths
+
+            $NewTocSubdirectoriesOutput = $TocSubdirectoriesOutput.Clone()
+            $NewTocSubdirectoriesOutput += $SubdirectoryOrderFileLineFileName
+
+            Copy-Tree -InputBaseDirectory $InputBaseDirectory -OutputBaseDirectory $OutputBaseDirectory -TocFileString ([ref]$SubTocContents) -TocSubdirectories $NewTocSubdirectories -TocSubdirectoriesOutput $NewTocSubdirectoriesOutput -AttachmentPaths $AttachmentPaths
           }
         }
       }
@@ -101,17 +110,13 @@ function Copy-Tree {
   }
 }
 
-# Throw an exception when a page name contains an invalid character
 function Format-PageFileName {
   param (
     [string]$PageFileName
   )
 
-  $PageFileName = $PageFileName.Replace("%2D", "-")
-
-  if ($PageFileName.Contains("%")) {
-    throw "Invalid page name ${PageFileName}: DocFX does not support special characters"
-  }
+  # Replace al percent encoded special characters with hyphen
+  $PageFileName = $PageFileName -replace "%[0-9a-fA-F]{2}", "-"
 
   return $PageFileName
 }
@@ -121,7 +126,7 @@ function Format-PageName {
     [string]$PageName
   )
 
-  $PageName = [System.Web.HTTPUtility]::UrlDecode($PageName).Replace("-", " ")
+  $PageName = [System.Web.HTTPUtility]::UrlDecode($PageName.Replace("-", " "))
 
   return $PageName
 }
@@ -145,7 +150,7 @@ function Copy-MarkdownFile {
   $NewContent = [System.Text.StringBuilder]::new()
 
   # Process each line in the file
-  foreach($MdLine in @(Get-Content -Path $Path)) {
+  foreach($MdLine in @(Get-Content -LiteralPath $Path)) {
     if ($ThreeDotsStarted -lt 1 -and $SilencedByPrivate) {
       $SilencedByPrivate = $false
     }
@@ -238,7 +243,7 @@ function Copy-MarkdownFile {
   }
 
   if ($ContentWritten) {
-    Set-Content -Path $Destination -Value $NewContent.ToString()
+    Set-Content -LiteralPath $Destination -Value $NewContent.ToString() -Encoding 'UTF8'
   }
 
   return $ContentWritten
@@ -374,12 +379,12 @@ function Copy-DevOpsWikiToDocFx {
     
     # Write section TOC file
     if ($SubTocContents.Length -gt 0) {
-      Set-Content -Path (Join-Path (Join-Path $OutputDir $OrderFileLineForDestinationDir) $DocFxTocFilename) -Value $SubTocContents
+      Set-Content -Path (Join-Path (Join-Path $OutputDir $OrderFileLineForDestinationDir) $DocFxTocFilename) -Value $SubTocContents -Encoding 'UTF8'
     }
   }
   # TOC file schrijven
   if ($TocContents.Length -gt 0) {
-    Set-Content -Path (Join-Path $OutputDir $DocFxTocFilename) -Value $TocContents
+    Set-Content -Path (Join-Path $OutputDir $DocFxTocFilename) -Value $TocContents -Encoding 'UTF8'
   }
 
   # If attachments found...
@@ -442,5 +447,5 @@ function Copy-DevOpsWikiToDocFx {
 }
 "@
 
-  Set-Content -Path (Join-Path $OutputDir $DocFxJsonFilename) -Value $DocFxJson 
+  Set-Content -Path (Join-Path $OutputDir $DocFxJsonFilename) -Value $DocFxJson -Encoding 'UTF8' 
 }
