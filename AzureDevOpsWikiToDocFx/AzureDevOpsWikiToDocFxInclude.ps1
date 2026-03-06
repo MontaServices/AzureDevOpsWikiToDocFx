@@ -150,7 +150,7 @@ function Copy-MarkdownFile {
   $NewContent = [System.Text.StringBuilder]::new()
 
   # Process each line in the file
-  foreach($MdLine in @(Get-Content -LiteralPath $Path)) {
+  foreach($MdLine in @(Get-Content -LiteralPath $Path -Encoding 'UTF8')) {
     if ($ThreeDotsStarted -lt 1 -and $SilencedByPrivate) {
       $SilencedByPrivate = $false
     }
