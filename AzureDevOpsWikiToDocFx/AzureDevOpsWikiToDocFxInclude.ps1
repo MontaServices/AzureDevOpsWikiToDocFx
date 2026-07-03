@@ -159,12 +159,11 @@ function Copy-MarkdownFile {
     $MdLine = $MdLine.Replace("[[_TOC_]]", "")
     $MdLine = $MdLine.Replace("[[_TOSP_]]", "")
 
-    $MdLine = $MdLine.Trim()
-
     # Process ::: marker for mermaid and private (content to hide)
-    if ($MdLine.StartsWith($SpecialsMarker))
+    $MdLineTrimmed = $MdLine.Trim()
+    if ($MdLineTrimmed.StartsWith($SpecialsMarker))
     {
-      $RestOfLine = $MdLine.Substring(3).Trim();
+      $RestOfLine = $MdLineTrimmed.Substring(3).Trim();
       if ($RestOfLine.Length -gt 0) {
         if ($RestOfLine -eq "private") {
           $SilencedByPrivate = $true
